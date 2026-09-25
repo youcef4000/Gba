@@ -1230,7 +1230,7 @@ section { position: relative; }
 
 .cfg-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .field { display: grid; gap: 8px; font-size: 0.9rem; color: var(--muted); }
-.field input {
+.field input, .field textarea {
   width: 100%;
   padding: 15px 18px;
   border-radius: 14px;
@@ -1241,8 +1241,14 @@ section { position: relative; }
   font-size: 1rem;
   transition: border-color 0.3s;
 }
-.field input::placeholder { color: var(--faint); }
-.field input:focus { outline: none; border-color: var(--accent); }
+.field textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
+.field:has(textarea) { grid-column: 1 / -1; }
+.field input::placeholder, .field textarea::placeholder { color: var(--faint); }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
+.field.is-invalid input { border-color: #ff6b4a; }
+.field-err { font-style: normal; font-size: 0.85rem; color: #ff8a6b; }
+/* Champ piege anti-robots : hors ecran, jamais vu par un humain. */
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 .cfg-summary {
   position: sticky;
@@ -1254,6 +1260,27 @@ section { position: relative; }
   background: var(--surface);
   border: 1px solid var(--line);
 }
+.cfg-compose { display: grid; gap: 18px; }
+.cfg-status { min-height: 1.4em; font-size: 0.9rem; color: var(--muted); }
+.cfg-status:empty { display: none; }
+.cfg-status.is-error { color: #ff8a6b; }
+.btn-send:disabled { cursor: progress; opacity: 0.85; }
+.btn-send.is-loading svg { animation: spin 0.8s linear infinite; }
+.btn-send.is-loading svg path { d: path("M12 3a9 9 0 1 0 9 9"); }
+.cfg-done {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding-block: 28px;
+  text-align: center;
+}
+.done-mark { width: 84px; height: 84px; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.done-mark circle { stroke: color-mix(in srgb, var(--accent) 35%, transparent); }
+.done-mark path { stroke: var(--accent); stroke-dasharray: 40; stroke-dashoffset: 40; animation: draw 0.7s var(--ease) 0.2s forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.cfg-done-t { font-family: var(--f-display); font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 700; letter-spacing: -0.03em; }
+[dir="rtl"] .cfg-done-t { letter-spacing: 0; }
+.cfg-done-d { max-width: 26rem; color: var(--muted); }
 .cfg-sum-t { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
 [dir="rtl"] .cfg-sum-t { font-family: var(--f-body); letter-spacing: 0; font-size: 0.9rem; }
 .meter { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; font-size: 0.85rem; color: var(--muted); }

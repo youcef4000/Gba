@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin · youcef.</title>
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,300..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<!-- ============================================================ Connexion -->
+<div class="login" id="login" hidden>
+  <form class="login-card" id="login-form" novalidate>
+    <p class="logo">youcef<span>.</span> <em>admin</em></p>
+    <h1>Espace admin</h1>
+    <p class="muted">Messages reçus et statistiques du portfolio.</p>
+    <label class="field" for="password"><span>Mot de passe</span>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button class="btn btn-primary" type="submit" id="login-btn">Se connecter</button>
+    <p class="form-error" id="login-error" role="alert"></p>
+  </form>
+</div>
+
+<!-- ============================================================ Application -->
+<div class="app" id="app" hidden>
+  <header class="top">
+    <a class="logo" href="/" target="_blank" rel="noopener">youcef<span>.</span> <em>admin</em></a>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" id="tab-messages" aria-controls="view-messages" aria-selected="true">Messages <span class="badge" id="badge" hidden></span></button>
+      <button type="button" role="tab" id="tab-stats" aria-controls="view-stats" aria-selected="false">Statistiques</button>
+    </nav>
+    <div class="top-right">
+      <a class="link" href="/" target="_blank" rel="noopener">Voir le site ↗</a>
+      <button type="button" class="link" id="logout">Déconnexion</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <!-- Messages -->
+    <section class="view" id="view-messages" role="tabpanel" aria-labelledby="tab-messages">
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Filtrer les messages">
+          <button type="button" data-status="inbox" aria-pressed="true">Boîte de réception</button>
+          <button type="button" data-status="new" aria-pressed="false">Non lus</button>
+          <button type="button" data-status="archived" aria-pressed="false">Archivés</button>
+          <button type="button" data-status="all" aria-pressed="false">Tous</button>
+        </div>
+        <button type="button" class="link" id="refresh">Actualiser</button>
+      </div>
+      <div class="inbox" id="inbox">
+        <ul class="msg-list" id="msg-list" aria-label="Messages"></ul>
+        <article class="msg-detail" id="msg-detail" aria-live="polite"></article>
+      </div>
+    </section>
+
+    <!-- Statistiques -->
+    <section class="view" id="view-stats" role="tabpanel" aria-labelledby="tab-stats" hidden>
+      <div class="filters">
+        <div class="seg" role="group" aria-label="Période">
+          <button type="button" data-days="7" aria-pressed="false">7 jours</button>
+          <button type="button" data-days="30" aria-pressed="true">30 jours</button>
+          <button type="button" data-days="90" aria-pressed="false">90 jours</button>
+        </div>
+        <p class="range" id="range"></p>
+      </div>
+
+      <div class="stats" id="stats">
+        <div class="kpis" id="kpis"></div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Visites par jour</h2>
+            <button type="button" class="link" id="toggle-table" aria-expanded="false" aria-controls="daily-table">Voir le tableau</button>
+          </div>
+          <div class="chart" id="chart"></div>
+          <div class="table-wrap" id="daily-table" hidden></div>
+        </div>
+
+        <div class="grid">
+          <div class="card"><h2>Parcours des visiteurs</h2><div class="rows" id="funnel"></div></div>
+          <div class="card"><h2>D'où ils viennent</h2><div class="rows" id="sources"></div></div>
+          <div class="card"><h2>Pays</h2><div class="rows" id="countries"></div></div>
+          <div class="card"><h2>Clics sortants</h2><div class="rows" id="clicks"></div></div>
+          <div class="card"><h2>Appareils</h2><div class="rows" id="devices"></div></div>
+          <div class="card"><h2>Langue choisie</h2><div class="rows" id="langs"></div></div>
+        </div>
+
+        <p class="note">Une visite correspond à une personne sur une journée. Les statistiques n'utilisent ni cookie ni adresse IP stockée, et ignorent les robots.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="admin.js"></script>
+</body>
+</html>

@@ -89,9 +89,7 @@
       a.textContent = "Instagram @" + h;
     });
     const wa = $("#cfg-wa");
-    const mail = $("#cfg-mail");
     if (wa) wa.hidden = !waNumber;
-    if (mail) mail.hidden = !email;
     const fc = $(".f-contact");
     if (fc) fc.hidden = !waNumber && !email && !CFG.instagram;
     const alt = $(".cfg-alt");
@@ -100,6 +98,63 @@
       const sep = $(".cfg-sep", alt);
       if (sep) sep.hidden = !(waNumber && email);
     }
+  }
+
+  /* ============================================================ analytics */
+
+  // Statistiques maison : un evenement = un petit POST vers /api/track.
+  // Pas de cookie, pas d'IP stockee ; "Do Not Track" est respecte.
+  const API = (CFG.api || "/api").replace(/\/$/, "");
+  const track = (() => {
+    const off =
+      CFG.analytics === false ||
+      !/^https?:$/.test(location.protocol) ||
+      navigator.doNotTrack === "1" ||
+      window.doNotTrack === "1";
+    const once = new Set();
+    return (type, label = "", unique = false) => {
+      if (off) return;
+      const key = type + ":" + label;
+      if (unique && once.has(key)) return;
+      once.add(key);
+      const params = new URLSearchParams(location.search);
+      const body = JSON.stringify({
+        type,
+        label,
+        lang,
+        path: location.pathname,
+        ref: type === "pageview" ? document.referrer : "",
+        utm: type === "pageview" ? params.get("utm_source") || "" : "",
+      });
+      try {
+        if (navigator.sendBeacon && navigator.sendBeacon(API + "/track", new Blob([body], { type: "application/json" }))) return;
+        fetch(API + "/track", { method: "POST", body, keepalive: true, headers: { "content-type": "application/json" } }).catch(() => {});
+      } catch (e) { /* statistiques facultatives */ }
+    };
+  })();
+
+  function initTracking() {
+    track("pageview");
+    // Sections atteintes : c'est l'entonnoir visite -> projets -> contact.
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach((en) => {
+          if (!en.isIntersecting) return;
+          track("reach", en.target.id, true);
+          io.unobserve(en.target);
+        });
+      }, { rootMargin: "-45% 0px -45% 0px" });
+      ["projets", "services", "contact"].forEach((id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+    }
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest("a[href]");
+      if (!a) return;
+      if (a.id === "cfg-wa" || a.classList.contains("contact-wa")) { track("click", "WhatsApp"); return; }
+      if (a.classList.contains("contact-mail")) { track("click", "E-mail"); return; }
+      if (/^https?:/.test(a.href) && a.host !== location.host) {
+        track("click", a.host.replace(/^www\./, ""));
+      }
+    });
   }
 
   /* ========================================================= configurator */
@@ -119,7 +174,9 @@
       when: label(when),
       opts: opts.map(label),
       name: $("#f-name").value.trim(),
+      contact: $("#f-contact").value.trim(),
       biz: $("#f-biz").value.trim(),
+      details: $("#f-details").value.trim(),
     };
   }
 
@@ -129,13 +186,18 @@
     const lines = [m.hello.replace("{site}", CFG.name || "Youcef"), ""];
     if (d.name) lines.push(fill(m.name, d.name));
     if (d.biz) lines.push(fill(m.biz, d.biz));
-    if (d.name || d.biz) lines.push("");
+    if (d.contact) lines.push(fill(m.contact, d.contact));
+    if (d.name || d.biz || d.contact) lines.push("");
     lines.push(fill(m.type, d.type));
     lines.push(fill(m.opts, d.opts.length ? d.opts.join(", ") : m.none));
     lines.push(fill(m.when, d.when));
+    if (d.details) lines.push("", fill(m.details, d.details));
     lines.push("", m.end);
     return lines.join("\n");
   }
+
+  const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+  const isPhone = (v) => /^\+?[\d\s().-]{8,22}$/.test(v) && v.replace(/\D/g, "").length >= 8 && v.replace(/\D/g, "").length <= 15;
 
   let lastMessage = "";
   function updateMessage() {
@@ -150,19 +212,102 @@
 
     const wa = $("#cfg-wa");
     if (wa && waNumber) wa.href = "https://wa.me/" + waNumber + "?text=" + encodeURIComponent(lastMessage);
-    const mail = $("#cfg-mail");
-    if (mail && email) mail.href = "mailto:" + email + "?subject=" + encodeURIComponent(str().msg.subject) + "&body=" + encodeURIComponent(lastMessage);
+  }
+
+  function setStatus(text, isError) {
+    const el = $("#cfg-status");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.toggle("is-error", !!isError);
+  }
+
+  function showContactError(on) {
+    const input = $("#f-contact");
+    input.closest(".field").classList.toggle("is-invalid", on);
+    input.setAttribute("aria-invalid", String(on));
+    $("#f-contact-err").hidden = !on;
+  }
+
+  async function submitForm() {
+    const d = readForm();
+    if (!isEmail(d.contact) && !isPhone(d.contact)) {
+      showContactError(true);
+      const input = $("#f-contact");
+      input.focus({ preventScroll: true });
+      if (lenis) lenis.scrollTo(input, { offset: -160, duration: 0.8 });
+      else input.scrollIntoView({ block: "center" });
+      if (gsap && !reduce) gsap.fromTo(input, { x: -8 }, { x: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
+      return;
+    }
+    showContactError(false);
+
+    const btn = $("#cfg-submit");
+    const s = str();
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    setStatus(s.sending, false);
+    try {
+      const res = await fetch(API + "/contact", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: d.name,
+          contact: d.contact,
+          business: d.biz,
+          type: d.type,
+          options: d.opts,
+          when: d.when,
+          details: d.details,
+          message: lastMessage,
+          lang,
+          website: $("#f-website").value,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw Object.assign(new Error("send"), { code: data.error || "server" });
+      setStatus("", false);
+      showDone(true);
+    } catch (err) {
+      const code = err.code || "offline";
+      if (code === "invalid_contact") showContactError(true);
+      setStatus((s.errors && (s.errors[code] || s.errors.server)) || "", true);
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("is-loading");
+    }
+  }
+
+  function showDone(on) {
+    const done = $("#cfg-done");
+    const compose = $("#cfg-compose");
+    done.hidden = !on;
+    compose.hidden = on;
+    if (on && gsap && !reduce) {
+      gsap.from(done.children, { y: 20, opacity: 0, stagger: 0.08, duration: 0.7, ease: "power3.out" });
+    }
+    if (window.ScrollTrigger) window.ScrollTrigger.refresh();
   }
 
   function initConfigurator() {
     const form = $("#cfg-form");
     if (!form) return;
-    form.addEventListener("submit", (e) => e.preventDefault());
-    form.addEventListener("input", updateMessage);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitForm();
+    });
+    form.addEventListener("input", (e) => {
+      if (e.target.id === "f-contact") showContactError(false);
+      updateMessage();
+    });
     form.addEventListener("change", (e) => {
       updateMessage();
       const chip = e.target.closest(".chip");
       if (chip && gsap && !reduce) gsap.fromTo(chip.querySelector("span"), { scale: 0.9 }, { scale: 1, duration: 0.5, ease: "back.out(3)" });
+    });
+    $("#cfg-again").addEventListener("click", () => {
+      $("#f-details").value = "";
+      updateMessage();
+      showDone(false);
     });
 
     const copy = $("#cfg-copy");
@@ -1062,6 +1207,7 @@
 
     const saved = store.get("lang");
     applyLang(saved || "fr");
+    initTracking();
     setInterval(updateClock, 30000);
 
     $$(".lang button").forEach((b) => {
@@ -1095,6 +1241,7 @@
   function switchLang(next) {
     if (next === lang) return;
     store.set("lang", next);
+    track("lang", next);
     if (!gsap || !mm) { applyLang(next); return; }
     const scroller = $("main");
     gsap.to([scroller, ".footer"], {

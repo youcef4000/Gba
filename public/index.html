@@ -381,7 +381,7 @@
   <header class="sec-head">
     <p class="eyebrow" data-i18n="cfg.eyebrow">Contact</p>
     <h2 class="sec-title split-lines" data-i18n="cfg.title">Votre projet<br>en 30 secondes.</h2>
-    <p class="sec-lead" data-i18n="cfg.lead">Cochez ce dont vous avez besoin. Votre message se rédige tout seul, il ne reste qu'à l'envoyer.</p>
+    <p class="sec-lead" data-i18n="cfg.lead">Cochez ce dont vous avez besoin et laissez un moyen de vous joindre. Votre message se rédige tout seul, il ne reste qu'à l'envoyer.</p>
   </header>
 
   <form class="cfg" id="cfg-form" novalidate>
@@ -421,21 +421,33 @@
       </fieldset>
 
       <div class="cfg-inputs">
-        <label class="field"><span data-i18n="cfg.name">Votre prénom</span><input type="text" id="f-name" name="name" autocomplete="given-name" data-i18n-ph="cfg.name.ph" placeholder="Amine"></label>
-        <label class="field"><span data-i18n="cfg.biz">Votre activité</span><input type="text" id="f-biz" name="biz" data-i18n-ph="cfg.biz.ph" placeholder="Boutique de montres, Oran"></label>
+        <label class="field"><span data-i18n="cfg.name">Votre prénom</span><input type="text" id="f-name" name="name" autocomplete="given-name" maxlength="80" data-i18n-ph="cfg.name.ph" placeholder="Amine"></label>
+        <label class="field"><span data-i18n="cfg.contact">Votre WhatsApp ou e-mail</span><input type="text" id="f-contact" name="contact" autocomplete="tel" maxlength="120" required aria-describedby="f-contact-err" data-i18n-ph="cfg.contact.ph" placeholder="0551 23 45 67 ou vous@mail.com"><em class="field-err" id="f-contact-err" data-i18n="cfg.contact.err" hidden>Indiquez un numéro ou un e-mail valide pour que je puisse vous répondre.</em></label>
+        <label class="field"><span data-i18n="cfg.biz">Votre activité</span><input type="text" id="f-biz" name="biz" maxlength="120" data-i18n-ph="cfg.biz.ph" placeholder="Boutique de montres, Oran"></label>
+        <label class="field"><span data-i18n="cfg.details">Un détail à ajouter ?</span><textarea id="f-details" name="details" rows="3" maxlength="2000" data-i18n-ph="cfg.details.ph" placeholder="Votre page Instagram, votre site actuel, une idée précise…"></textarea></label>
+        <div class="hp" aria-hidden="true"><label for="f-website">Site web</label><input type="text" id="f-website" name="website" tabindex="-1" autocomplete="off"></div>
       </div>
     </div>
 
-    <aside class="cfg-summary" aria-live="polite">
+    <aside class="cfg-summary">
+      <div class="cfg-done" id="cfg-done" hidden>
+        <svg class="done-mark" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>
+        <p class="cfg-done-t" data-i18n="cfg.done.t">Message envoyé.</p>
+        <p class="cfg-done-d" data-i18n="cfg.done.d">Merci ! Je reviens vers vous très vite, sur le contact que vous avez indiqué.</p>
+        <button class="btn btn-ghost" type="button" id="cfg-again"><span data-i18n="cfg.again">Envoyer une autre demande</span></button>
+      </div>
+      <div class="cfg-compose" id="cfg-compose">
       <p class="cfg-sum-t" data-i18n="cfg.preview">Votre message</p>
       <div class="meter"><span class="meter-l" data-i18n="cfg.meter">Ambition du projet</span><span class="meter-bar"><i></i></span><span class="meter-v">0%</span></div>
       <pre class="cfg-msg" id="cfg-msg"></pre>
       <div class="cfg-actions">
-        <a class="btn btn-iri magnetic" id="cfg-wa" href="#" target="_blank" rel="noopener"><span data-i18n="cfg.send">Envoyer sur WhatsApp</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-        <a class="btn btn-ghost" id="cfg-mail" href="#"><span data-i18n="cfg.mail">Envoyer par e-mail</span></a>
+        <button class="btn btn-iri btn-send magnetic" type="submit" id="cfg-submit"><span data-i18n="cfg.submit">Envoyer ma demande</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <a class="btn btn-ghost" id="cfg-wa" href="#" target="_blank" rel="noopener"><span data-i18n="cfg.send">Sur WhatsApp</span></a>
         <button class="btn btn-ghost" type="button" id="cfg-copy"><span data-i18n="cfg.copy">Copier le message</span></button>
       </div>
+      <p class="cfg-status" id="cfg-status" role="status" aria-live="polite"></p>
       <p class="cfg-alt"><span data-i18n="cfg.alt">Ou écrivez directement :</span> <a class="contact-wa" href="#" target="_blank" rel="noopener"></a><span class="cfg-sep"> · </span><a class="contact-mail" href="#"></a></p>
+      </div>
     </aside>
   </form>
 </section>
