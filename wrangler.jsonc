@@ -1,0 +1,19 @@
+{
+  // Worker "gba" : le site statique (public/) + l'API (worker/index.js).
+  // Le nom doit rester celui du Worker cree dans Cloudflare.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gba",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  // Pas d'identifiant : au premier deploiement, Wrangler cree la base D1 et
+  // la relie au Worker ; les deploiements suivants la retrouvent seuls.
+  "d1_databases": [{ "binding": "DB" }],
+  // Garde les variables ajoutees dans le tableau de bord Cloudflare.
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}
