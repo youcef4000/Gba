@@ -29,6 +29,10 @@ Le Worker `gba` est relié au dépôt GitHub. Il reste trois réglages à faire 
 
 Le prochain `git push` sur `master` déclenche le déploiement. Le site est alors en ligne à l'adresse affichée sur la page du Worker (`https://gba.<ton-sous-domaine>.workers.dev`), et chaque push suivant le remet à jour.
 
+> **Attention à ne pas confondre Production et aperçu.** En haut de la page du Worker, le sélecteur à côté de `gba` doit indiquer **Production** (l'adresse se termine par `/production/settings`). Un aperçu nommé `master` peut apparaître si des commits ont été poussés avant le réglage de la branche : il ne sert à rien, on le supprime depuis ses propres réglages (**General → Delete**). Ses builds échouent de toute façon, car la commande d'aperçu ne sait pas créer la base D1.
+>
+> **Les variables se règlent après le premier déploiement réussi.** Tant que le Worker n'a jamais été déployé, Cloudflare refuse d'ajouter `ADMIN_PASSWORD` (« Create a deployment before patching one »).
+
 ## 2. La base de données et l'espace admin
 
 Rien à créer : au premier déploiement, Wrangler crée la base D1 et la relie au Worker (le journal de build affiche « Provisioning DB »). Les tables se créent au premier message ou à la première visite.
