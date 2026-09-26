@@ -5,6 +5,8 @@
   "name": "gba",
   "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
+  // Adresse publique gba.<compte>.workers.dev toujours active.
+  "workers_dev": true,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
