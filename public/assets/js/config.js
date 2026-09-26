@@ -14,8 +14,8 @@
    ========================================================================== */
 window.SITE_CONFIG = {
   name: "Youcef",
-  whatsapp: "213000000000",
-  email: "contact@exemple.com",
+  whatsapp: "213558678038",
+  email: "youcef.ny@gmail.com",
   instagram: "",
   api: "/api",
   analytics: true,
