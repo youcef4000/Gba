@@ -152,7 +152,8 @@
       if (a.id === "cfg-wa" || a.classList.contains("contact-wa")) { track("click", "WhatsApp"); return; }
       if (a.classList.contains("contact-mail")) { track("click", "E-mail"); return; }
       if (/^https?:/.test(a.href) && a.host !== location.host) {
-        track("click", a.host.replace(/^www\./, ""));
+        const path = a.pathname.split("/").filter(Boolean)[0];
+        track("click", a.host.replace(/^www\./, "") + (path ? "/" + path : ""));
       }
     });
   }
@@ -343,7 +344,6 @@
       el.textContent = new Intl.DateTimeFormat(str().locale, {
         hour: "2-digit",
         minute: "2-digit",
-        timeZone: "Africa/Algiers",
       }).format(new Date());
     } catch (e) { /* fuseau inconnu : on laisse le tiret */ }
   }
@@ -508,44 +508,45 @@
   /* ================================================================= map */
 
   const map = (() => {
+    // Globe terrestre en points : il tourne avec le scroll, les points
+    // s'allument, puis des liaisons relient de grandes villes. Aucun pays
+    // n'est nomme : c'est l'idee d'une clientele partout dans le monde.
     const canvas = $(".map-canvas");
-    const D = window.MAP_DATA;
-    if (!canvas || !D) return null;
+    const P = window.GLOBE_DATA;
+    if (!canvas || !P) return null;
     const ctx = canvas.getContext("2d");
-    const kx = Math.cos((33.5 * Math.PI) / 180);
-    const toGrid = (lon, lat) => [(lon - D.lon0) / D.step, (D.lat1 - lat) / D.step];
-    const ALGER = toGrid(3.06, 36.75);
-    const TAM = toGrid(5.52, 22.79);
-    const DEST = [
-      { name: "Marseille", g: toGrid(5.37, 43.3) },
-      { name: "Paris", g: toGrid(2.35, 48.86) },
-      { name: "Madrid", g: toGrid(-3.7, 40.42) },
-      { name: "Roma", g: toGrid(12.5, 41.9) },
-    ];
+    const RAD = Math.PI / 180;
+    const TILT = 18 * RAD;
 
-    // Les points s'allument depuis Alger vers le sud : ordre par distance.
-    const dz = [];
-    for (let i = 0; i < D.dz.length; i += 2) {
-      const c = D.dz[i], r = D.dz[i + 1];
-      dz.push({ c, r, d: Math.hypot((c - ALGER[0]) * kx, r - ALGER[1]) + Math.random() * 3 });
+    const pts = [];
+    for (let i = 0; i < P.length; i += 2) {
+      const lon = P[i] / 10, lat = P[i + 1] / 10;
+      // Ordre d'allumage pseudo-aleatoire mais stable d'un rendu a l'autre.
+      const k = Math.sin(lon * 12.9898 + lat * 78.233) * 43758.5453;
+      pts.push({ lon: lon * RAD, lat: lat * RAD, order: k - Math.floor(k) });
     }
-    dz.sort((a, b) => a.d - b.d);
+    pts.sort((a, b) => a.order - b.order);
 
-    const land = document.createElement("canvas");
-    const lctx = land.getContext("2d");
-    let W = 0, H = 0, dpr = 1, cell = 1, ox = 0, oy = 0, landKey = "";
+    const CITIES = {
+      ny: [-74, 40.7], mtl: [-73.6, 45.5], sp: [-46.6, -23.5], ldn: [-0.1, 51.5],
+      par: [2.35, 48.86], ist: [29, 41], dxb: [55.3, 25.2], sin: [103.8, 1.35],
+      tyo: [139.7, 35.7], lag: [3.4, 6.5],
+    };
+    const ARCS = [["par", "ny"], ["ldn", "mtl"], ["par", "dxb"], ["dxb", "sin"], ["ny", "sp"], ["ist", "ldn"], ["dxb", "lag"], ["sin", "tyo"]];
+    const vec = ([lon, lat]) => {
+      const l = lon * RAD, f = lat * RAD;
+      return [Math.cos(f) * Math.cos(l), Math.cos(f) * Math.sin(l), Math.sin(f)];
+    };
+
+    let W = 0, H = 0, dpr = 1, R = 1, cx = 0, cy = 0;
     let progress = reduce ? 1 : 0;
-    let pulse = 0;
+    let spin = 0;
     let running = false;
-
-    const X = (c) => ox + c * kx * cell;
-    const Y = (r) => oy + r * cell;
 
     function colors() {
       const cs = getComputedStyle(root);
       return {
         fg: cs.getPropertyValue("--fg").trim() || "#f2efe8",
-        bg: cs.getPropertyValue("--bg").trim() || "#0a0a0d",
         accent: cs.getPropertyValue("--accent").trim() || "#e8b84a",
         accent2: cs.getPropertyValue("--accent2").trim() || "#9b6bff",
       };
@@ -557,155 +558,142 @@
       dpr = Math.min(devicePixelRatio || 1, 2);
       W = rect.width;
       H = rect.height;
-      canvas.width = land.width = Math.round(W * dpr);
-      canvas.height = land.height = Math.round(H * dpr);
-      cell = Math.min(W / (D.cols * kx), H / D.rows);
-      ox = (W - D.cols * kx * cell) / 2;
-      oy = (H - D.rows * cell) / 2;
-      landKey = "";
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      R = Math.min(W, H) * 0.44;
+      cx = W / 2;
+      cy = H / 2;
       draw();
     }
 
-    function drawLand(fg) {
-      const key = fg + W;
-      if (key === landKey) return;
-      landKey = key;
-      lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      lctx.clearRect(0, 0, W, H);
-      lctx.fillStyle = fg;
-      lctx.globalAlpha = 0.13;
-      const rad = cell * 0.26;
-      lctx.beginPath();
-      for (let i = 0; i < D.land.length; i += 2) {
-        const x = X(D.land[i]), y = Y(D.land[i + 1]);
-        lctx.moveTo(x + rad, y);
-        lctx.arc(x, y, rad, 0, Math.PI * 2);
-      }
-      lctx.fill();
-      lctx.globalAlpha = 1;
+    // Projection orthographique ; renvoie aussi la profondeur (cos c).
+    function project(lon, lat, lon0, k = 1) {
+      const d = lon - lon0;
+      const cosLat = Math.cos(lat);
+      const depth = Math.sin(TILT) * Math.sin(lat) + Math.cos(TILT) * cosLat * Math.cos(d);
+      return {
+        x: cx + k * R * cosLat * Math.sin(d),
+        y: cy - k * R * (Math.cos(TILT) * Math.sin(lat) - Math.sin(TILT) * cosLat * Math.cos(d)),
+        depth,
+      };
     }
 
-    function quad(a, b, t) {
-      // Courbe qui monte vers le nord : point de controle decale en hauteur.
-      const cx = (a[0] + b[0]) / 2 - (b[1] - a[1]) * 0.25;
-      const cy = Math.min(a[1], b[1]) - 6;
-      const u = 1 - t;
-      return [u * u * a[0] + 2 * u * t * cx + t * t * b[0], u * u * a[1] + 2 * u * t * cy + t * t * b[1]];
-    }
-
-    function label(text, x, y, col) {
-      const w = ctx.measureText(text).width;
-      const h = parseFloat(ctx.font.split(" ")[1]) || 12;
-      ctx.fillStyle = col.bg;
-      ctx.globalAlpha = 0.85;
-      ctx.fillRect(x - 4, y - h * 0.75, w + 8, h * 1.5);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = col.fg;
-      ctx.fillText(text, x, y);
+    function slerp(a, b, t) {
+      const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+      const om = Math.acos(dot);
+      const so = Math.sin(om) || 1;
+      const s1 = Math.sin((1 - t) * om) / so, s2 = Math.sin(t * om) / so;
+      const x = s1 * a[0] + s2 * b[0], y = s1 * a[1] + s2 * b[1], z = s1 * a[2] + s2 * b[2];
+      return [Math.atan2(y, x), Math.asin(Math.max(-1, Math.min(1, z)))];
     }
 
     function draw() {
       if (!W) return;
       const col = colors();
-      drawLand(col.fg);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, W, H);
-      ctx.drawImage(land, 0, 0, W, H);
 
-      const p1 = Math.min(1, progress / 0.72);
-      const lit = Math.floor(p1 * dz.length);
-      const rad = cell * 0.3;
+      // Le globe tourne de l'Atlantique vers l'Asie pendant le scroll.
+      const lon0 = (-55 + progress * 130 + spin) * RAD;
 
+      // Halo et disque.
+      const halo = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 1.25);
+      halo.addColorStop(0, "rgba(0,0,0,0)");
+      halo.addColorStop(0.6, col.accent2);
+      halo.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(cx, cy, R * 1.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 0.05;
       ctx.fillStyle = col.fg;
-      ctx.globalAlpha = 0.24;
       ctx.beginPath();
-      for (let i = lit; i < dz.length; i++) {
-        const x = X(dz[i].c), y = Y(dz[i].r);
-        ctx.moveTo(x + rad, y);
-        ctx.arc(x, y, rad, 0, Math.PI * 2);
-      }
+      ctx.arc(cx, cy, R, 0, Math.PI * 2);
       ctx.fill();
-
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = col.accent;
-      ctx.beginPath();
-      for (let i = 0; i < lit; i++) {
-        const x = X(dz[i].c), y = Y(dz[i].r);
-        ctx.moveTo(x + rad, y);
-        ctx.arc(x, y, rad, 0, Math.PI * 2);
-      }
-      ctx.fill();
-
-      // Alger : point d'origine qui pulse.
-      const ax = X(ALGER[0]), ay = Y(ALGER[1]);
-      const pr = (pulse % 1) * cell * 5;
-      ctx.strokeStyle = col.accent;
-      ctx.globalAlpha = 1 - (pulse % 1);
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(ax, ay, cell * 0.6 + pr, 0, Math.PI * 2);
+      ctx.globalAlpha = 0.18;
+      ctx.strokeStyle = col.fg;
+      ctx.lineWidth = 1;
       ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = col.fg;
-      ctx.beginPath();
-      ctx.arc(ax, ay, cell * 0.7, 0, Math.PI * 2);
-      ctx.fill();
 
-      const font = Math.max(10, Math.min(13, W / 42));
-      ctx.font = `500 ${font}px "JetBrains Mono", ui-monospace, monospace`;
-      ctx.textBaseline = "middle";
-
-      // Tamanrasset s'etiquette quand la vague l'atteint.
-      if (p1 > 0.85) {
-        const tx = X(TAM[0]), ty = Y(TAM[1]);
-        ctx.globalAlpha = Math.min(1, (p1 - 0.85) / 0.15);
-        ctx.fillStyle = col.fg;
-        ctx.beginPath();
-        ctx.arc(tx, ty, cell * 0.55, 0, Math.PI * 2);
-        ctx.fill();
-        label("Tamanrasset", tx + cell * 1.4, ty, col);
-        ctx.globalAlpha = 1;
+      // Points : ceux allumes passent a la couleur d'accent.
+      const lit = Math.floor(Math.min(1, progress / 0.6) * pts.length);
+      const base = Math.max(1.1, R * 0.0105);
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.fillStyle = pass ? col.accent : col.fg;
+        for (let i = pass ? 0 : lit; i < (pass ? lit : pts.length); i++) {
+          const q = pts[i];
+          const pr = project(q.lon, q.lat, lon0);
+          if (pr.depth <= 0) continue;
+          ctx.globalAlpha = pass ? 0.35 + 0.65 * pr.depth : 0.1 + 0.3 * pr.depth;
+          const r = base * (0.55 + 0.45 * pr.depth);
+          ctx.fillRect(pr.x - r, pr.y - r, r * 2, r * 2);
+        }
       }
 
-      // Liaisons export.
-      const p2 = Math.max(0, Math.min(1, (progress - 0.55) / 0.4));
+      // Liaisons entre villes, en arc au-dessus de la surface.
+      const p2 = Math.max(0, Math.min(1, (progress - 0.4) / 0.5));
       if (p2 > 0) {
-        ctx.strokeStyle = col.accent2;
         ctx.lineWidth = 1.6;
-        DEST.forEach((d, k) => {
-          const t = Math.max(0, Math.min(1, p2 * 1.6 - k * 0.2));
+        ctx.strokeStyle = col.accent2;
+        ARCS.forEach(([a, b], n) => {
+          const t = Math.max(0, Math.min(1, p2 * 1.8 - n * 0.1));
           if (!t) return;
-          const a = ALGER, b = d.g;
+          const va = vec(CITIES[a]), vb = vec(CITIES[b]);
+          ctx.globalAlpha = 0.9;
           ctx.beginPath();
-          for (let s = 0; s <= 40; s++) {
-            const pt = quad(a, b, (s / 40) * t);
-            const x = X(pt[0]), y = Y(pt[1]);
-            if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          let pen = false;
+          let head = null;
+          for (let s2 = 0; s2 <= 48; s2++) {
+            const u = (s2 / 48) * t;
+            const [lon, lat] = slerp(va, vb, u);
+            const pr = project(lon, lat, lon0, 1 + 0.2 * Math.sin(Math.PI * u));
+            if (pr.depth < -0.12) { pen = false; head = null; continue; }
+            if (pen) ctx.lineTo(pr.x, pr.y); else ctx.moveTo(pr.x, pr.y);
+            pen = true;
+            head = pr;
           }
           ctx.stroke();
-          const head = quad(a, b, t);
-          ctx.fillStyle = col.accent2;
-          ctx.beginPath();
-          ctx.arc(X(head[0]), Y(head[1]), cell * 0.55, 0, Math.PI * 2);
-          ctx.fill();
-          if (t >= 1) {
-            label(d.name, X(b[0]) + cell * 1.2, Y(b[1]), col);
+          if (head) {
+            ctx.fillStyle = col.accent2;
+            ctx.beginPath();
+            ctx.arc(head.x, head.y, 3, 0, Math.PI * 2);
+            ctx.fill();
           }
         });
+        // Villes reliees : un point et une onde.
+        const pulse = (performance.now() / 1600) % 1;
+        Object.values(CITIES).forEach(([lon, lat]) => {
+          const pr = project(lon * RAD, lat * RAD, lon0);
+          if (pr.depth <= 0.05) return;
+          ctx.globalAlpha = p2;
+          ctx.fillStyle = col.fg;
+          ctx.beginPath();
+          ctx.arc(pr.x, pr.y, 2.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = p2 * (1 - pulse) * 0.8;
+          ctx.strokeStyle = col.accent;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(pr.x, pr.y, 3 + pulse * 12, 0, Math.PI * 2);
+          ctx.stroke();
+        });
       }
-
-      const num = $(".map-num");
-      if (num) num.textContent = String(Math.round(p1 * 58));
+      ctx.globalAlpha = 1;
     }
 
-    function loop() {
-      pulse += 0.012;
+    let last = 0;
+    function loop(time) {
+      const dt = last ? Math.min(0.05, (time - last) / 1000) : 0;
+      last = time;
+      spin = (spin + dt * 4) % 360;
       draw();
     }
 
     function setRunning(on) {
       if (reduce || !gsap || on === running) return;
       running = on;
+      last = 0;
       if (on) gsap.ticker.add(loop); else gsap.ticker.remove(loop);
     }
 
@@ -1056,6 +1044,40 @@
               },
             });
             cleanups.push(() => { clearInterval(timer); nameEl.textContent = models[0]; });
+          }
+
+          if (p.id === "p-villa") {
+            // Le plan se dessine trait par trait, les typologies arrivent ensuite.
+            tl.fromTo($$(".vl-plan .pl", p), { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.4, stagger: 0.12, ease: "power2.inOut" }, 0.1)
+              .from($$(".vl-plan text", p), { opacity: 0, y: 4, stagger: 0.08, duration: 0.5 }, 0.9)
+              .from($$(".vl-types li", p), { y: 14, opacity: 0, stagger: 0.08, duration: 0.6, ease: "power3.out" }, 0.3);
+            gsap.fromTo($(".vl-photo", p), { scale: 1.18, yPercent: -4 }, { scale: 1.02, yPercent: 4, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
+            gsap.fromTo($(".vl-sun", p), { yPercent: -40 }, { yPercent: 80, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
+          }
+
+          if (p.id === "p-stick") {
+            // Compteur de tournage qui defile tant que la maquette est visible.
+            const tc = $(".sp-tc", p);
+            let frames = 0;
+            let timer = null;
+            const pad = (n) => String(n).padStart(2, "0");
+            const tick = () => {
+              frames += 1;
+              const f = frames % 25, sec = Math.floor(frames / 25);
+              tc.textContent = `00:${pad(Math.floor(sec / 60) % 60)}:${pad(sec % 60)}:${pad(f)}`;
+            };
+            tl.from($$(".sp-ring i", p), { scale: 0.3, opacity: 0, stagger: 0.07, duration: 0.8, ease: "back.out(1.8)" }, 0)
+              .from($(".sp-cta", p), { y: 14, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.4);
+            ST.create({
+              trigger: p,
+              start: "top 80%",
+              end: "bottom 20%",
+              onToggle(self) {
+                clearInterval(timer);
+                timer = self.isActive ? setInterval(tick, 40) : null;
+              },
+            });
+            cleanups.push(() => clearInterval(timer));
           }
         });
 
