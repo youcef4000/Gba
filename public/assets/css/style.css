@@ -1,5 +1,5 @@
 /* ============================================================================
-   Youcef — portfolio.
+   Bornz Studio — portfolio.
 
    Principe : le site change de peau. Chaque projet repeint toute la page
    avec sa propre palette pendant le scroll (voir main.js, "Chameleon").
@@ -191,15 +191,7 @@ section { position: relative; }
 }
 .js .preloader { display: flex; }
 .pre-inner { display: flex; flex: 1; align-items: flex-end; justify-content: space-between; gap: 24px; }
-.pre-name {
-  font-family: "Bricolage Grotesque", Arial, sans-serif;
-  font-size: clamp(3.4rem, 15vw, 13rem);
-  font-weight: 800;
-  font-stretch: 80%;
-  letter-spacing: -0.05em;
-  line-height: 0.85;
-}
-.pre-dot { color: #e8b84a; }
+.pre-name { width: clamp(220px, 56vw, 860px); color: #f2efe8; --accent: #e8b84a; }
 .pre-count {
   font-family: var(--f-mono);
   font-size: clamp(1rem, 2vw, 1.4rem);
@@ -318,15 +310,23 @@ section { position: relative; }
 }
 .nav.is-hidden { transform: translateY(-105%); }
 
-.logo {
-  font-family: var(--f-display);
-  font-size: 1.5rem;
-  font-weight: 800;
-  font-stretch: 85%;
-  letter-spacing: -0.04em;
+/* Logo Bornz Studio : le "o" se remplit de la couleur du projet en cours,
+   comme un jaune d'oeuf. Lettres Instrument Serif italique vectorisees. */
+.bz { display: block; width: 100%; height: auto; overflow: visible; }
+.bz-word { fill: currentColor; }
+.bz-fill { fill: var(--accent); transform-box: fill-box; transform-origin: 50% 100%; transition: fill 0.6s; }
+.bz-studio { fill: currentColor; opacity: 0.58; }
+
+.logo { display: block; flex-shrink: 0; color: var(--fg); }
+.logo .bz { width: auto; height: 36px; aspect-ratio: 757.12 / 160; }
+@media (hover: hover) {
+  .logo:hover .bz-fill { animation: bz-refill 0.9s var(--ease); }
 }
-.logo span, .f-word span { color: var(--accent); transition: color 0.6s; }
-[dir="rtl"] .logo { font-family: "Bricolage Grotesque", Arial, sans-serif; }
+@keyframes bz-refill {
+  0% { transform: scaleY(1); }
+  38% { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
+}
 
 .nav-links { display: flex; gap: 34px; font-size: 0.95rem; }
 .nav-links a { position: relative; color: var(--muted); transition: color 0.3s; }
@@ -370,6 +370,7 @@ section { position: relative; }
 @media (max-width: 520px) {
   :root { --nav-h: 64px; }
   .nav-right .btn { display: none; }
+  .logo .bz { height: 30px; }
 }
 
 /* ---------------------------------------------------------------- hero */
@@ -1523,18 +1524,11 @@ section { position: relative; }
 .f-cols p { color: var(--muted); max-width: 22rem; }
 .f-t { margin-bottom: 8px; font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg) !important; }
 [dir="rtl"] .f-t { font-family: var(--f-body); letter-spacing: 0; font-size: 0.9rem; }
-.f-word {
+.f-logo {
+  width: min(100%, 1080px);
   margin: 0 auto;
-  max-width: var(--max);
-  font-family: "Bricolage Grotesque", Arial, sans-serif;
-  font-size: clamp(5rem, 23vw, 22rem);
-  font-weight: 800;
-  font-stretch: 75%;
-  letter-spacing: -0.06em;
-  line-height: 0.82;
-  padding-top: 40px;
-  direction: ltr;
-  text-align: center;
+  padding-top: 48px;
+  color: var(--fg);
 }
 .f-bottom {
   max-width: var(--max);

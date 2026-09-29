@@ -17,7 +17,7 @@ window.I18N = {
   /* Textes generes par le script (curseur, message, etiquettes). */
   str: {
     fr: {
-      title: "Youcef — Développeur web · Des sites qui vendent",
+      title: "Bornz Studio — Création de sites web · Des sites qui vendent",
       cursorVisit: "Visiter",
       cursorDemo: "Démo",
       copied: "Message copié ✓",
@@ -44,7 +44,7 @@ window.I18N = {
       },
     },
     ar: {
-      title: "يوسف — مطوّر ويب · مواقع تبيع",
+      title: "Bornz Studio — تصميم وتطوير المواقع · مواقع تبيع",
       cursorVisit: "زيارة",
       cursorDemo: "عرض",
       copied: "تم نسخ الرسالة ✓",
@@ -71,7 +71,7 @@ window.I18N = {
       },
     },
     en: {
-      title: "Youcef — Web developer · Websites that sell",
+      title: "Bornz Studio — Web design & development · Websites that sell",
       cursorVisit: "Visit",
       cursorDemo: "Demo",
       copied: "Message copied ✓",

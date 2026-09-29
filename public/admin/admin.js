@@ -191,7 +191,7 @@
     const badge = $("#badge");
     badge.hidden = !n;
     badge.textContent = String(n);
-    document.title = (n ? `(${n}) ` : "") + "Admin · youcef.";
+    document.title = (n ? `(${n}) ` : "") + "Admin · Bornz Studio";
   }
 
   function renderList() {

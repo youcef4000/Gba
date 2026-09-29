@@ -45,8 +45,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
 .muted { color: var(--muted); }
 
-.logo { font-weight: 800; font-size: 1.3rem; letter-spacing: -0.04em; text-decoration: none; font-stretch: 85%; }
-.logo span { color: var(--gold); }
+.logo { display: inline-flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; }
+.logo .bz { display: block; height: 26px; width: auto; aspect-ratio: 757.12 / 160; overflow: visible; }
+.bz-word { fill: currentColor; }
+.bz-fill { fill: var(--gold); }
+.bz-studio { fill: currentColor; opacity: 0.58; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .logo em {
   margin-left: 4px;
   padding: 2px 8px;

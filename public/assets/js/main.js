@@ -1,5 +1,5 @@
 /* ============================================================================
-   Youcef — portfolio. Toute l'interaction de la page.
+   Bornz Studio — portfolio. Toute l'interaction de la page.
 
    Ordre de demarrage :
      1. langue sauvegardee appliquee, rideau de chargement lance ;
@@ -184,7 +184,7 @@
   function composeMessage(d) {
     const m = str().msg;
     const fill = (tpl, v) => tpl.replace("{v}", v);
-    const lines = [m.hello.replace("{site}", CFG.name || "Youcef"), ""];
+    const lines = [m.hello.replace("{site}", CFG.name || "Bornz Studio"), ""];
     if (d.name) lines.push(fill(m.name, d.name));
     if (d.biz) lines.push(fill(m.biz, d.biz));
     if (d.contact) lines.push(fill(m.contact, d.contact));
@@ -1173,15 +1173,11 @@
           .from(".ft-em", { yPercent: 110, rotation: isArabic() ? -3 : 3, ease: "none" }, 0.2)
           .from(".btn-round", { scale: 0, rotation: -120, ease: "none" }, 0.35);
 
-        /* ---- Footer : le nom geant monte ---------------------------- */
-        const word = Split.create(".f-word", { type: "chars", mask: "chars" });
-        gsap.from(word.chars, {
-          yPercent: 100,
-          stagger: 0.05,
-          duration: 1.2,
-          ease: "expo.out",
-          scrollTrigger: { trigger: ".f-word", start: "top 95%", once: true },
-        });
+        /* ---- Footer : le logo geant s'ecrit, puis le "o" se remplit --- */
+        gsap.timeline({ scrollTrigger: { trigger: ".f-logo", start: "top 92%", once: true } })
+          .from(".f-logo .bz-word path", { y: 90, opacity: 0, stagger: 0.07, duration: 1.1, ease: "expo.out" })
+          .from(".f-logo .bz-fill", { scaleY: 0, transformOrigin: "50% 100%", duration: 1.2, ease: "power2.inOut" }, 0.35)
+          .from(".f-logo .bz-studio", { x: -40, opacity: 0, duration: 0.9, ease: "expo.out" }, 0.55);
 
         // Les declencheurs crees avant l'epinglage des services doivent etre
         // recalcules apres lui : on les remet dans l'ordre de la page.
@@ -1205,10 +1201,22 @@
     session.set("seen", "1");
     pre.style.animation = "none";
     const num = $(".pre-num", pre);
+    // Le "o" du logo se remplit au rythme du compteur.
+    const yolk = $(".bz-fill", pre);
+    if (yolk) gsap.set(yolk, { scaleY: 0, transformOrigin: "50% 100%" });
     const o = { v: 0 };
     gsap.timeline()
-      .from(".pre-name", { yPercent: 60, opacity: 0, duration: 0.8, ease: "expo.out" })
-      .to(o, { v: 100, duration: 1.1, ease: "power2.inOut", onUpdate: () => { num.textContent = Math.round(o.v); } }, 0)
+      .from(".pre-name .bz-word path", { yPercent: 40, opacity: 0, stagger: 0.06, duration: 0.8, ease: "expo.out" })
+      .from(".pre-name .bz-studio", { opacity: 0, duration: 0.6 }, 0.3)
+      .to(o, {
+        v: 100,
+        duration: 1.1,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          num.textContent = Math.round(o.v);
+          if (yolk) gsap.set(yolk, { scaleY: o.v / 100 });
+        },
+      }, 0)
       .add(() => {
         ready.then(() => {
           gsap.timeline({ onComplete: () => pre.remove() })

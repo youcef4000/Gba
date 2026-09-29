@@ -13,7 +13,7 @@
    Laisser une valeur vide masque le lien correspondant.
    ========================================================================== */
 window.SITE_CONFIG = {
-  name: "Youcef",
+  name: "Bornz Studio",
   whatsapp: "213558678038",
   email: "youcef.ny@gmail.com",
   instagram: "",
