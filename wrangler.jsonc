@@ -5,7 +5,9 @@
   "name": "gba",
   "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
-  // Adresse publique gba.<compte>.workers.dev toujours active.
+  // Adresse de secours gba.<compte>.workers.dev toujours active. Les domaines
+  // bornzstudio.com et www.bornzstudio.com sont branches dans le tableau de bord
+  // (onglet Domains du Worker) et restent en place a chaque deploiement.
   "workers_dev": true,
   "assets": {
     "directory": "./public",

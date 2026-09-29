@@ -27,7 +27,7 @@ Le Worker `gba` est relié au dépôt GitHub. Il reste trois réglages à faire 
    - Root directory : `/`
 3. **Mot de passe admin.** **Settings → Variables and Secrets → Add** → type **Secret**, nom `ADMIN_PASSWORD`, valeur : ton mot de passe (long et unique).
 
-Le prochain `git push` sur `master` déclenche le déploiement. Le site est alors en ligne à l'adresse affichée sur la page du Worker (`https://gba.<ton-sous-domaine>.workers.dev`), et chaque push suivant le remet à jour.
+Le prochain `git push` sur `master` déclenche le déploiement, et chaque push suivant remet le site à jour. Il est en ligne sur **https://bornzstudio.com** (voir la section 4), et reste joignable en secours sur `https://gba.youcef-ny.workers.dev`.
 
 > **Attention à ne pas confondre Production et aperçu.** En haut de la page du Worker, le sélecteur à côté de `gba` doit indiquer **Production** (l'adresse se termine par `/production/settings`). Un aperçu nommé `master` peut apparaître si des commits ont été poussés avant le réglage de la branche : il ne sert à rien, on le supprime depuis ses propres réglages (**General → Delete**). Ses builds échouent de toute façon, car la commande d'aperçu ne sait pas créer la base D1.
 >
@@ -37,7 +37,7 @@ Le prochain `git push` sur `master` déclenche le déploiement. Le site est alor
 
 Rien à créer : au premier déploiement, Wrangler crée la base D1 et la relie au Worker (le journal de build affiche « Provisioning DB »). Les tables se créent au premier message ou à la première visite.
 
-Ouvre ensuite `https://…workers.dev/admin` et connecte-toi avec `ADMIN_PASSWORD`.
+Ouvre ensuite https://bornzstudio.com/admin et connecte-toi avec `ADMIN_PASSWORD`.
 
 *Si le journal indique que la création a été ignorée faute de permission :* **Storage & Databases → D1 → Create**, puis Worker `gba` → **Settings → Bindings → Add → D1 database**, nom de la variable `DB`, et redéploie.
 
@@ -56,7 +56,15 @@ Avec ton propre domaine vérifié chez Resend, ajoute `MAIL_FROM` = `Portfolio <
 
 ## 4. Nom de domaine
 
-Worker `gba` → **Settings → Domains & Routes → Add → Custom domain**. Tu peux acheter le domaine chez Cloudflare (Registrar, au prix coûtant) ou le brancher depuis ton registraire actuel.
+Le domaine **bornzstudio.com** est acheté et renouvelé chez Hostinger, mais son DNS est géré par Cloudflare : chez Hostinger, les nameservers sont ceux de Cloudflare (`isla.ns.cloudflare.com`, `oswald.ns.cloudflare.com`).
+
+| Adresse | Worker |
+|---|---|
+| `bornzstudio.com` | `gba` (ce portfolio) |
+| `www.bornzstudio.com` | `gba`, redirigé vers `bornzstudio.com` par une règle Cloudflare |
+| `demos.bornzstudio.com` | `demos` (dépôt `youcef4000/demos`) |
+
+Pour brancher une nouvelle adresse : Worker → onglet **Domains** → **Add Domain** → sous-domaine (vide pour la racine). Cloudflare crée l'enregistrement DNS et le certificat HTTPS tout seul. Les domaines ajoutés ainsi restent en place à chaque déploiement.
 
 ---
 
@@ -72,7 +80,7 @@ Worker `gba` → **Settings → Domains & Routes → Add → Custom domain**. Tu
 - Visites par jour, avec le détail au survol et un tableau.
 - Parcours : visites → ont vu les projets → ont atteint le formulaire → ont envoyé un message.
 - Sources (Instagram, Facebook, TikTok, Google…), pays, appareils, langue choisie, clics vers tes sites et vers WhatsApp.
-- Pour suivre une campagne, ajoute `?utm_source=nom` au lien partagé (ex. `…workers.dev/?utm_source=pub_instagram`) : il apparaît tel quel dans les sources.
+- Pour suivre une campagne, ajoute `?utm_source=nom` au lien partagé (ex. `https://bornzstudio.com/?utm_source=pub_instagram`) : il apparaît tel quel dans les sources.
 
 **Sécurité et vie privée**
 - Session par cookie `HttpOnly` et `Secure`, valable 7 jours. Blocage de 15 minutes après 5 mauvais mots de passe.
