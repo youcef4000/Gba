@@ -3,7 +3,20 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
 
-/assets/*
+# Styles et scripts : le navigateur revérifie à chaque visite (réponse 304
+# légère si rien n'a changé), pour que chaque mise à jour se voie tout de suite.
+/assets/css/*
+  Cache-Control: no-cache
+
+/assets/js/*
+  Cache-Control: no-cache
+
+# Images et bibliothèques : gardées un jour. Changer ?v= dans index.html
+# quand une image garde le même nom mais change de contenu.
+/assets/img/*
+  Cache-Control: public, max-age=86400
+
+/assets/vendor/*
   Cache-Control: public, max-age=86400
 
 /admin
