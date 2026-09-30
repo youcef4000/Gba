@@ -1173,10 +1173,10 @@
           .from(".ft-em", { yPercent: 110, rotation: isArabic() ? -3 : 3, ease: "none" }, 0.2)
           .from(".btn-round", { scale: 0, rotation: -120, ease: "none" }, 0.35);
 
-        /* ---- Footer : le logo geant s'ecrit, puis le "o" se remplit --- */
+        /* ---- Footer : les lettres montent, la sphere nait ------------ */
         gsap.timeline({ scrollTrigger: { trigger: ".f-logo", start: "top 92%", once: true } })
           .from(".f-logo .bz-word path", { y: 90, opacity: 0, stagger: 0.07, duration: 1.1, ease: "expo.out" })
-          .from(".f-logo .bz-fill", { scaleY: 0, transformOrigin: "50% 100%", duration: 1.2, ease: "power2.inOut" }, 0.35)
+          .from(".f-logo .bz-orb", { scale: 0, rotation: -120, transformOrigin: "50% 50%", duration: 1.4, ease: "elastic.out(1, 0.6)" }, 0.2)
           .from(".f-logo .bz-studio", { x: -40, opacity: 0, duration: 0.9, ease: "expo.out" }, 0.55);
 
         // Les declencheurs crees avant l'epinglage des services doivent etre
@@ -1201,9 +1201,9 @@
     session.set("seen", "1");
     pre.style.animation = "none";
     const num = $(".pre-num", pre);
-    // Le "o" du logo se remplit au rythme du compteur.
-    const yolk = $(".bz-fill", pre);
-    if (yolk) gsap.set(yolk, { scaleY: 0, transformOrigin: "50% 100%" });
+    // La sphere du logo grandit au rythme du compteur.
+    const orb = $(".bz-orb", pre);
+    if (orb) gsap.set(orb, { scale: 0, transformOrigin: "50% 50%" });
     const o = { v: 0 };
     gsap.timeline()
       .from(".pre-name .bz-word path", { yPercent: 40, opacity: 0, stagger: 0.06, duration: 0.8, ease: "expo.out" })
@@ -1214,7 +1214,7 @@
         ease: "power2.inOut",
         onUpdate: () => {
           num.textContent = Math.round(o.v);
-          if (yolk) gsap.set(yolk, { scaleY: o.v / 100 });
+          if (orb) gsap.set(orb, { scale: o.v / 100, rotation: (o.v / 100 - 1) * 90 });
         },
       }, 0)
       .add(() => {

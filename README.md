@@ -91,7 +91,7 @@ Pour brancher une nouvelle adresse : Worker → onglet **Domains** → **Add Dom
 
 ## Personnaliser
 
-- **Logo** : `public/assets/img/` contient `logo.svg` (fond sombre), `logo-ink.svg` (fond clair), `favicon.svg`, `apple-touch-icon.png` et `og.png` (image affichée quand on partage le lien). Le logo est aussi intégré directement dans `index.html` (chargement, navigation, pied de page) : le « o » s'y remplit de la couleur du projet en cours.
+- **Logo** : `public/assets/img/` contient `logo.svg` (fond sombre), `logo-ink.svg` (fond clair), `favicon.svg`, `apple-touch-icon.png` et `og.png` (image affichée quand on partage le lien). Le logo est aussi intégré directement dans `index.html` (chargement, navigation, pied de page) : son « o » est une sphère irisée qui tourne doucement et prend les couleurs du projet en cours.
 - **Contacts affichés** : `public/assets/js/config.js` (WhatsApp, e-mail, Instagram). Un numéro WhatsApp renseigné ajoute le bouton « Sur WhatsApp » à côté de l'envoi.
 - **Textes français** : directement dans `public/index.html`.
 - **Arabe et anglais** : `public/assets/js/i18n.js`, sous la même clé que l'attribut `data-i18n` du HTML.

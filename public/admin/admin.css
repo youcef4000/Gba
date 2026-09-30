@@ -46,9 +46,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .muted { color: var(--muted); }
 
 .logo { display: inline-flex; align-items: center; gap: 6px; color: var(--text); text-decoration: none; }
-.logo .bz { display: block; height: 26px; width: auto; aspect-ratio: 757.12 / 160; overflow: visible; }
+.logo .bz { display: block; height: 22px; width: auto; aspect-ratio: 1030.16 / 176; overflow: visible; }
 .bz-word { fill: currentColor; }
-.bz-fill { fill: var(--gold); }
 .bz-studio { fill: currentColor; opacity: 0.58; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .logo em {

@@ -310,23 +310,22 @@ section { position: relative; }
 }
 .nav.is-hidden { transform: translateY(-105%); }
 
-/* Logo Bornz Studio : le "o" se remplit de la couleur du projet en cours,
-   comme un jaune d'oeuf. Lettres Instrument Serif italique vectorisees. */
+/* Logo Bornz Studio : "bornz" en Unbounded, le "o" est une sphere irisee.
+   Ses halos tournent lentement ; l'or et le violet suivent --accent et
+   --accent2, donc la sphere prend les couleurs du projet en cours. */
 .bz { display: block; width: 100%; height: auto; overflow: visible; }
 .bz-word { fill: currentColor; }
-.bz-fill { fill: var(--accent); transform-box: fill-box; transform-origin: 50% 100%; transition: fill 0.6s; }
 .bz-studio { fill: currentColor; opacity: 0.58; }
+.bz-swirl { transform-box: view-box; animation: bz-swirl 16s linear infinite; }
+.bz stop { transition: stop-color 0.6s; }
+@keyframes bz-swirl { to { transform: rotate(360deg); } }
 
 .logo { display: block; flex-shrink: 0; color: var(--fg); }
-.logo .bz { width: auto; height: 36px; aspect-ratio: 757.12 / 160; }
-@media (hover: hover) {
-  .logo:hover .bz-fill { animation: bz-refill 0.9s var(--ease); }
-}
-@keyframes bz-refill {
-  0% { transform: scaleY(1); }
-  38% { transform: scaleY(0); }
-  100% { transform: scaleY(1); }
-}
+.logo .bz { width: auto; height: 30px; aspect-ratio: 1030.16 / 176; }
+/* Survol : la sphere gonfle. (Pas de transform-box sur les autres logos :
+   GSAP anime leur sphere avec sa propre origine.) */
+.logo .bz-orb { transform-box: fill-box; transform-origin: 50% 50%; transition: transform 0.7s var(--ease); }
+.logo:hover .bz-orb { transform: scale(1.14); }
 
 .nav-links { display: flex; gap: 34px; font-size: 0.95rem; }
 .nav-links a { position: relative; color: var(--muted); transition: color 0.3s; }
@@ -370,7 +369,7 @@ section { position: relative; }
 @media (max-width: 520px) {
   :root { --nav-h: 64px; }
   .nav-right .btn { display: none; }
-  .logo .bz { height: 30px; }
+  .logo .bz { height: 26px; }
 }
 
 /* ---------------------------------------------------------------- hero */
@@ -1561,5 +1560,6 @@ section { position: relative; }
   .js .preloader { display: none; }
   .grain { display: none; }
   .rail-fill { transform: scaleY(1); }
+  .bz-swirl { animation: none; }
   .hello span:nth-child(1) { opacity: 1; }
 }
