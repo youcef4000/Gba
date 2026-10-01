@@ -128,7 +128,7 @@ window.I18N = {
     "man.text": "الموقع ليس واجهة عرض. إنه أفضل بائع لديك. يجيب في الثالثة صباحًا، يتحدث ثلاث لغات، يحصّل الثمن بالبطاقة أو عند الاستلام، ولا يأخذ عطلة أبدًا.",
 
     "work.eyebrow": "مشاريع منشورة",
-    "work.title": "ستة مشاريع.<br>ستة عوالم.",
+    "work.title": "سبعة مشاريع.<br>سبعة عوالم.",
     "work.lead": "لكل مشروع هويته الخاصة. واصل التمرير: ستتلوّن الصفحة بألوان كل واحد منها.",
 
     "p1.desc": "المنصة الشاملة لبيع المنتجات في الأسواق الدولية. حاسبة أسعار التصدير مباشرة وفق أسعار الصرف الرسمية، دليل المصدّر، رزنامة المعارض، وفضاء VIP مع مواعيد مع خبراء.",
@@ -267,6 +267,9 @@ window.I18N = {
     "p6.cat": "عرض تجريبي · إنتاج سمعي بصري",
     "p6.desc": "موقع استوديو إنتاج فيديو: الأعمال تدور في حلزون ثلاثي الأبعاد (WebGL)، وكل فيلم يعرض الموجز والمقاربة وما تم تسليمه. فضاء إدارة يعدّل النصوص والمشاريع دون برمجة.",
     "p6.chips": "<li>حلزون WebGL</li><li>بطاقات المشاريع</li><li>فضاء الإدارة</li><li>محتوى قابل للتعديل</li>",
+    "p7.cat": "عرض تجريبي · أحذية وأزياء",
+    "p7.desc": "موقع علامة أحذية وقمصان تقليدية وعطور: مع التمرير، يتفكك حذاؤها الرياضي ثلاثي الأبعاد قطعةً قطعة، من الرباط إلى النعل. دليل المقاسات، فضاء للموزعين، المتاجر وفضاء إدارة لتعديل كل شيء.",
+    "p7.chips": "<li>حذاء ثلاثي الأبعاد</li><li>تفكيك بالتمرير</li><li>دليل المقاسات</li><li>فضاء الموزعين</li>",
     "p.try": "شاهد العرض",
   },
 
@@ -299,7 +302,7 @@ window.I18N = {
     "man.text": "A website is not a shop window. It's your best salesperson. It answers at three in the morning, speaks three languages, takes payment by card or on delivery and never takes a day off.",
 
     "work.eyebrow": "Live projects",
-    "work.title": "Six projects.<br>Six worlds.",
+    "work.title": "Seven projects.<br>Seven worlds.",
     "work.lead": "Each project has its own identity. Keep scrolling: the page takes on each one's colours.",
 
     "p1.desc": "The all-in-one platform to sell products on international markets. A live export price calculator based on official exchange rates, an exporter's guide, a trade fair calendar and a VIP area with expert appointments.",
@@ -438,6 +441,9 @@ window.I18N = {
     "p6.cat": "Demo · Video production",
     "p6.desc": "A video production studio site: the work spins in a 3D spiral (WebGL), and each film shows the brief, the approach and what was delivered. An admin area edits copy and projects without code.",
     "p6.chips": "<li>WebGL spiral</li><li>Project sheets</li><li>Admin area</li><li>Editable content</li>",
+    "p7.cat": "Demo · Footwear & fashion",
+    "p7.desc": "A footwear, qamis and fragrance brand: as you scroll, its 3D sneaker comes apart piece by piece, from the laces to the sole. Size guide, reseller area, store locator and an admin area to edit everything.",
+    "p7.chips": "<li>3D sneaker</li><li>Scroll teardown</li><li>Size guide</li><li>Reseller area</li>",
     "p.try": "See the demo",
   },
 };

@@ -1057,6 +1057,38 @@ section { position: relative; }
 .sp-rec i { width: 1.1cqw; height: 1.1cqw; border-radius: 50%; background: #ff4a1c; animation: rec 1s steps(2, jump-none) infinite; }
 @keyframes rec { 50% { opacity: 0.15; } }
 
+/* --- Mock : Tlemceni (demo) --- */
+.mock-tlem {
+  background:
+    radial-gradient(ellipse 46% 62% at 72% 52%, rgba(210, 31, 43, 0.42), transparent 72%),
+    #0b0b0c;
+  color: #f3efe8;
+}
+.tl-bg {
+  position: absolute;
+  right: -3cqw;
+  top: 50%;
+  translate: 0 -50%;
+  font-size: 15.5cqw;
+  font-weight: 800;
+  font-stretch: 75%;
+  line-height: 1;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(243, 239, 232, 0.13);
+}
+.tl-nav { position: absolute; top: 3cqw; left: 4cqw; right: 4cqw; display: flex; justify-content: space-between; align-items: center; z-index: 1; }
+.tl-nav b { font-size: 1.9cqw; font-weight: 800; font-stretch: 75%; letter-spacing: 0.1em; }
+.tl-nav span { font-family: var(--f-mono); font-size: 1.05cqw; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.6; }
+.tl-hero { position: absolute; left: 4cqw; top: 11.5cqw; width: 40cqw; display: grid; gap: 2cqw; justify-items: start; z-index: 1; direction: ltr; }
+.tl-ar { display: block; width: 19cqw; height: auto; fill: #d21f2b; }
+.tl-h { font-size: 5.8cqw; line-height: 0.92; font-weight: 800; font-stretch: 75%; letter-spacing: -0.01em; text-transform: uppercase; }
+.tl-h em { display: block; font-style: normal; color: #ef3b46; }
+.tl-step { display: flex; gap: 1.4cqw; align-items: center; font-family: var(--f-mono); font-size: 1.2cqw; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(243, 239, 232, 0.72); }
+.tl-n { color: #d8b56a; font-variant-numeric: tabular-nums; }
+.tl-shoe { position: absolute; right: 3cqw; top: 4.5cqw; width: 43cqw; aspect-ratio: 1028 / 1206; }
+.tl-shoe img { position: absolute; display: block; height: auto; filter: drop-shadow(0 1.6cqw 1.8cqw rgba(0, 0, 0, 0.55)); will-change: transform; }
+
 @media (max-width: 900px) {
   .project { grid-template-columns: 1fr; min-height: 0; gap: 36px; }
   .project.p-rev .project-info { order: 0; }

@@ -1079,6 +1079,41 @@
             });
             cleanups.push(() => clearInterval(timer));
           }
+
+          if (p.id === "p-tlem") {
+            // La basket se demonte au scroll : chaque piece part de sa place
+            // dans la chaussure (decalage en % de sa hauteur) et s'ecarte.
+            const assembled = { lacets: 118, languette: 56, semelles: -22 };
+            const names = ["Les lacets", "La languette", "La tige", "Les semelles"];
+            const part = $(".tl-part", p);
+            const num = $(".tl-n", p);
+            let shown = -1;
+            const show = (i) => {
+              if (i === shown) return;
+              shown = i;
+              part.textContent = names[i];
+              num.textContent = `0${i + 1} / 04`;
+            };
+            const apart = gsap.timeline({
+              scrollTrigger: {
+                trigger: p,
+                start: "top 80%",
+                end: "center 45%",
+                scrub: 0.6,
+                onUpdate: (self) => show(Math.min(3, Math.floor(self.progress * 4))),
+                onRefresh: (self) => show(Math.min(3, Math.floor(self.progress * 4))),
+              },
+            });
+            $$(".tl-shoe img", p).forEach((img) => {
+              const y = assembled[img.dataset.part];
+              if (y) apart.fromTo(img, { yPercent: y }, { yPercent: 0, ease: "power1.inOut" }, 0);
+            });
+            apart.fromTo($(".tl-shoe", p), { rotation: -6, scale: 0.9 }, { rotation: 0, scale: 1, ease: "none" }, 0);
+            tl.from($(".tl-ar", p), { y: 16, opacity: 0, duration: 0.8, ease: "power3.out" }, 0)
+              .from($(".tl-step", p), { x: -16, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.3);
+            gsap.fromTo($(".tl-bg", p), { xPercent: 8 }, { xPercent: -10, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
+            cleanups.push(() => show(3));
+          }
         });
 
         /* ---- Portee : chiffres -------------------------------------- */
