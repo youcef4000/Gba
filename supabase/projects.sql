@@ -220,7 +220,7 @@ begin
    '{"fr": "Plateforme IA", "en": "AI platform", "ar": "منصة ذكاء اصطناعي"}',
    '{"fr": "Toute l''IA en une seule connexion : GPT, Claude, Gemini, DeepSeek, Grok et FLUX dans une interface unifiée, avec chat, studio d''images, espace développeur et agent de recherche.",
      "en": "All of AI in one login: GPT, Claude, Gemini, DeepSeek, Grok and FLUX in a single interface, with chat, an image studio, a developer space and a research agent.",
-     "ar": "كل الذكاء الاصطناعي بتسجيل دخول واحد: GPT وClaude وGemini وDeepSeek وGrok وFLUX في واجهة موحّدة، مع الدردشة واستوديو الصور وفضاء المطوّرين ووكيل البحث."}',
+     "ar": "كل الذكاء الاصطناعي بتسجيل دخول واحد: GPT، Claude، Gemini، DeepSeek، Grok و FLUX في واجهة موحّدة، مع الدردشة واستوديو الصور وفضاء المطوّرين ووكيل البحث."}',
    '{"fr": ["6+ modèles IA", "Studio image", "Abonnements"], "en": ["6+ AI models", "Image studio", "Subscriptions"], "ar": ["+6 نماذج", "استوديو الصور", "اشتراكات"]}',
    '#0d0a22', '#9b6bff', '#2fd3e6', 'assets/img/projects/swiftly.webp', 'assets/img/projects/swiftly-m.webp', 3),
   ('Tlemceni', 'demo', 'https://demos.bornzstudio.com/tlemceni/', 2026,

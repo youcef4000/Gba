@@ -1,14 +1,16 @@
 /* ============================================================================
    Bornz Studio — portfolio. Toute l'interaction de la page.
 
-   Ordre de demarrage :
-     1. langue sauvegardee appliquee, rideau de chargement lance ;
-     2. polices pretes -> build() cree toutes les animations au scroll ;
-     3. le rideau se leve et joue l'intro du hero.
+   Demarrage :
+     1. langue sauvegardee appliquee, compteur de chargement lance ;
+     2. polices pretes -> l'intro (hero + manifeste) est construite ;
+     3. projets recus (Supabase, sinon copie locale) -> le reste est construit ;
+     4. le rideau tombe, l'orbe quitte le centre et se pose dans le "o".
 
-   Toutes les animations liees au scroll vivent dans un gsap.matchMedia :
-   changer de langue fait mm.revert() puis build(), ce qui remet le DOM a
-   plat (SplitText compris) avant de le re-decouper dans la nouvelle langue.
+   L'orbe (orb.js) est pilotee ici a chaque image : sa position, sa taille
+   et ses couleurs dependent de la section a l'ecran (voir orbTarget).
+   Les animations au scroll vivent dans deux gsap.matchMedia : changer de
+   langue les defait, re-ecrit les textes, puis les reconstruit.
    ========================================================================== */
 (() => {
   "use strict";
@@ -18,11 +20,16 @@
   const root = document.documentElement;
   const CFG = window.SITE_CONFIG || {};
   const I18N = window.I18N || {};
+  const gsap = window.gsap;
+  const ST = window.ScrollTrigger;
+  const Split = window.SplitText;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const finePointer = matchMedia("(hover: hover) and (pointer: fine)").matches;
-  const gsap = window.gsap;
+  const motion = !reduce && !!gsap && !!ST && !!Split;
+  const FEATURED = 8;
 
-  if (reduce) root.classList.add("no-motion");
+  if (!motion) root.classList.add("no-motion");
+  else root.classList.add("intro-pending");
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -32,6 +39,28 @@
     get(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* stockage bloque */ } },
   };
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, f) => a + (b - a) * f;
+  const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const easeIO = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+  function h(tag, attrs = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "text") el.textContent = v;
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) {
+      if (c == null || c === false) continue;
+      el.append(c.nodeType ? c : document.createTextNode(String(c)));
+    }
+    return el;
+  }
+  const ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>';
+  const icon = (html) => { const t = document.createElement("template"); t.innerHTML = html; return t.content.firstChild; };
 
   /* ================================================================ i18n */
 
@@ -43,6 +72,8 @@
   let lang = "fr";
   const str = () => (I18N.str && I18N.str[lang]) || I18N.str.fr;
   const words = () => (I18N.words && I18N.words[lang]) || I18N.words.fr;
+  const pick = (o) => (o && (o[lang] || o.fr)) || "";
+  const hasArabic = (s) => /[؀-ۿ]/.test(s || "");
 
   function applyLang(next) {
     lang = ["fr", "ar", "en"].includes(next) ? next : "fr";
@@ -56,6 +87,7 @@
       const k = el.dataset.i18nPh;
       el.placeholder = k in dict ? dict[k] : FR["ph:" + k];
     });
+    $$(".svc-name").forEach((el) => { el.dataset.text = el.textContent; });
     root.lang = lang;
     root.dir = lang === "ar" ? "rtl" : "ltr";
     document.title = str().title;
@@ -73,25 +105,17 @@
 
   function fillContacts() {
     $$(".contact-wa").forEach((a) => {
-      if (!waNumber) { a.textContent = ""; a.removeAttribute("href"); return; }
+      if (!waNumber) { a.hidden = true; return; }
       a.href = "https://wa.me/" + waNumber;
       a.textContent = "WhatsApp +" + waNumber;
     });
     $$(".contact-mail").forEach((a) => {
-      if (!email) { a.textContent = ""; a.removeAttribute("href"); return; }
+      if (!email) { a.hidden = true; return; }
       a.href = "mailto:" + email;
       a.textContent = email;
     });
-    $$(".contact-ig").forEach((a) => {
-      if (!CFG.instagram) { a.textContent = ""; a.removeAttribute("href"); return; }
-      const h = String(CFG.instagram).replace(/^@/, "");
-      a.href = "https://instagram.com/" + h;
-      a.textContent = "Instagram @" + h;
-    });
     const wa = $("#cfg-wa");
     if (wa) wa.hidden = !waNumber;
-    const fc = $(".f-contact");
-    if (fc) fc.hidden = !waNumber && !email && !CFG.instagram;
     const alt = $(".cfg-alt");
     if (alt) {
       alt.hidden = !waNumber && !email;
@@ -100,24 +124,29 @@
     }
   }
 
-  /* ============================================================ analytics */
+  /* ============================================================ supabase */
 
-  // Statistiques maison : un evenement = un appel a la fonction track_event
-  // de la base Supabase. Pas de cookie, pas d'IP stockee ; "Do Not Track" est respecte.
   const SB = CFG.supabase || {};
   const SB_OK = !!(SB.url && SB.key && !/^SUPABASE_/.test(SB.key));
-  const rpc = (fn, args, keepalive = false) =>
+  const rpc = (fn, args, opts = {}) =>
     fetch(SB.url.replace(/\/$/, "") + "/rest/v1/rpc/" + fn, {
       method: "POST",
-      keepalive,
+      keepalive: !!opts.keepalive,
+      signal: opts.signal,
       headers: { "content-type": "application/json", apikey: SB.key },
-      body: JSON.stringify(args),
+      body: JSON.stringify(args || {}),
     });
+
+  /* ============================================================ analytics */
+
+  // Statistiques maison : un evenement = un appel a track_event.
+  // Pas de cookie, pas d'IP stockee ; "Do Not Track" est respecte.
   const track = (() => {
     const off =
       CFG.analytics === false ||
       !SB_OK ||
       !/^https?:$/.test(location.protocol) ||
+      /^(localhost|127\.)/.test(location.hostname) ||
       navigator.doNotTrack === "1" ||
       window.doNotTrack === "1";
     const once = new Set();
@@ -127,26 +156,15 @@
       if (unique && once.has(key)) return;
       once.add(key);
       const params = new URLSearchParams(location.search);
-      // Un lien interne n'est pas une source de visite.
       let ref = type === "pageview" ? document.referrer : "";
       try { if (ref && new URL(ref).host === location.host) ref = ""; } catch (e) { ref = ""; }
-      const p = {
-        type,
-        label,
-        lang,
-        path: location.pathname,
-        ref,
-        utm: type === "pageview" ? params.get("utm_source") || "" : "",
-      };
-      try {
-        rpc("track_event", { p }, true).catch(() => {});
-      } catch (e) { /* statistiques facultatives */ }
+      const p = { type, label, lang, path: location.pathname, ref, utm: type === "pageview" ? params.get("utm_source") || "" : "" };
+      try { rpc("track_event", { p }, { keepalive: true }).catch(() => {}); } catch (e) { /* facultatif */ }
     };
   })();
 
   function initTracking() {
     track("pageview");
-    // Sections atteintes : c'est l'entonnoir visite -> projets -> contact.
     if ("IntersectionObserver" in window) {
       const io = new IntersectionObserver((entries) => {
         entries.forEach((en) => {
@@ -169,9 +187,178 @@
     });
   }
 
-  /* ========================================================= configurator */
+  /* ============================================================= projets */
 
-  const TYPE_WEIGHT = { landing: 22, vitrine: 16, shop: 42, saas: 56, ai: 50 };
+  let projects = [];
+  const HEX = /^#[0-9a-f]{6}$/i;
+
+  function normalize(p) {
+    const txt = (o) => (o && typeof o === "object" ? o : { fr: String(o || "") });
+    const tags = (o) => {
+      const out = {};
+      ["fr", "en", "ar"].forEach((l) => { out[l] = Array.isArray(o && o[l]) ? o[l].filter(Boolean).map(String) : []; });
+      return out;
+    };
+    const url = /^https?:\/\//.test(p.url || "") ? p.url : "";
+    const img = (v) => (/^(https?:\/\/|assets\/)/.test(v || "") ? v : "");
+    return {
+      title: String(p.title || "").trim(),
+      kind: ["site", "app", "demo"].includes(p.kind) ? p.kind : "site",
+      url,
+      year: p.year || "",
+      cat: txt(p.cat),
+      summary: txt(p.summary),
+      tags: tags(p.tags),
+      bg: HEX.test(p.bg) ? p.bg : "#0b0b10",
+      accent: HEX.test(p.accent) ? p.accent : "#e8b84a",
+      accent2: HEX.test(p.accent2) ? p.accent2 : "#9b6bff",
+      cover: img(p.cover),
+      cover_m: img(p.cover_m),
+    };
+  }
+
+  async function loadProjects() {
+    const fromDb = async () => {
+      if (!SB_OK) throw new Error("off");
+      const ctrl = typeof AbortController === "function" ? new AbortController() : null;
+      const timer = setTimeout(() => ctrl && ctrl.abort(), 3000);
+      try {
+        const res = await rpc("get_projects", {}, { signal: ctrl ? ctrl.signal : undefined });
+        if (!res.ok) throw new Error("http");
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error("shape");
+        return data;
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    const fromFile = async () => {
+      const res = await fetch("assets/data/projects.json?v=20261030");
+      return res.json();
+    };
+    let list = [];
+    try { list = await fromDb(); } catch (e) {
+      try { list = await fromFile(); } catch (e2) { list = []; }
+    }
+    projects = list.map(normalize).filter((p) => p.title);
+  }
+
+  // Couleur de texte lisible sur le fond d'un projet.
+  function inkOn(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    const l = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    return l > 0.42 ? "#0a0a0d" : "#f2efe8";
+  }
+  const hostOf = (u) => { try { return new URL(u).host.replace(/^www\./, ""); } catch (e) { return ""; } };
+  const two = (n) => String(n).padStart(2, "0");
+
+  function worldEl(p, i, total) {
+    const s = str();
+    const cursor = p.kind === "demo" ? "demo" : "visit";
+    const cta = p.kind === "demo" ? s.demo : s.visit;
+    const meta = [s.kinds[p.kind], p.year].filter(Boolean).join(" · ");
+    const tags = p.tags[lang] && p.tags[lang].length ? p.tags[lang] : p.tags.fr;
+    const link = (cls, extra, ...kids) => p.url
+      ? h("a", Object.assign({ class: cls, href: p.url, target: "_blank", rel: "noopener", "data-cursor": cursor }, extra), ...kids)
+      : h("div", { class: cls }, ...kids);
+
+    const visual = link("w-visual", { tabindex: "-1", "aria-hidden": "true" },
+      h("span", { class: "w-browser" },
+        h("span", { class: "w-bar" }, h("i"), h("i"), h("i"), h("span", { text: hostOf(p.url) })),
+        p.cover
+          ? h("span", { class: "w-shot" }, h("img", { src: p.cover, alt: "", loading: i < 2 ? "eager" : "lazy", decoding: "async" }))
+          : h("span", { class: "w-poster", text: p.title })),
+      p.cover_m ? h("span", { class: "w-phone" }, h("img", { src: p.cover_m, alt: "", loading: i < 2 ? "eager" : "lazy", decoding: "async" })) : null,
+      h("span", { class: "w-seed" })
+    );
+
+    const summary = pick(p.summary);
+    const cat = pick(p.cat);
+    return h("article", {
+      class: "world" + (p.cover_m ? " has-phone" : ""),
+      style: `--wbg:${p.bg};--wfg:${inkOn(p.bg)};--wac:${p.accent};--wac2:${p.accent2}`,
+      "aria-label": p.title,
+      "data-i": i,
+    },
+      h("span", { class: "w-glow", "aria-hidden": "true" }),
+      h("div", { class: "w-top" },
+        h("span", {}, h("span", { class: "w-num", text: two(i + 1) }), " / " + two(total)),
+        h("span", { text: meta })),
+      h("div", { class: "w-text" },
+        cat ? h("span", { class: "w-cat", text: cat }) : null,
+        h("h3", { class: "w-title", text: p.title, dir: hasArabic(p.title) ? "rtl" : "ltr" }),
+        summary ? h("p", { class: "w-sum", text: summary }) : null,
+        tags.length ? h("ul", { class: "w-tags" }, tags.map((t) => h("li", { text: t }))) : null,
+        p.url ? link("w-cta", {}, h("span", { text: cta }), icon(ARROW)) : null
+      ),
+      visual
+    );
+  }
+
+  function rowEl(p, i) {
+    const s = str();
+    const inner = [
+      h("span", { class: "r-n", text: two(i + 1) }),
+      h("span", { class: "r-thumb" }, p.cover ? h("img", { src: p.cover, alt: "", loading: "lazy", decoding: "async" }) : null),
+      h("span", { class: "r-t" }, h("span", { class: "r-dot", "aria-hidden": "true" }), h("b", { text: p.title, dir: "auto" })),
+      h("span", { class: "r-c", text: pick(p.cat) }),
+      h("span", { class: "r-k", text: s.kinds[p.kind] }),
+      h("span", { class: "r-y", text: String(p.year || "") }),
+      h("span", { class: "r-a", "aria-hidden": "true" }, icon(ARROW)),
+    ];
+    const a = p.url
+      ? h("a", { class: "row-a", href: p.url, target: "_blank", rel: "noopener", "data-i": i }, inner)
+      : h("div", { class: "row-a", "data-i": i }, inner);
+    return h("li", { class: "row", "data-kind": p.kind, style: `--rac:${p.accent};--rac2:${p.accent2};--rbg:${p.bg}` }, a);
+  }
+
+  let filter = "all";
+
+  function renderWorks() {
+    const works = $("#projets");
+    works.hidden = !projects.length;
+    $$(".count-live").forEach((el) => { el.textContent = two(projects.length); });
+    const featured = projects.slice(0, FEATURED);
+    $("#stage").replaceChildren(...featured.map((p, i) => worldEl(p, i, featured.length)));
+    $("#rows").replaceChildren(...projects.map(rowEl));
+    $$(".filters button").forEach((b) => {
+      const k = b.dataset.kind;
+      const n = k === "all" ? projects.length : projects.filter((p) => p.kind === k).length;
+      $(".f-n", b).textContent = String(n);
+      b.hidden = k !== "all" && !n;
+    });
+    applyFilter(filter, false);
+  }
+
+  function applyFilter(kind, animate) {
+    filter = kind;
+    $$(".filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === kind)));
+    const rows = $$("#rows .row");
+    const show = (r) => kind === "all" || r.dataset.kind === kind;
+    if (!animate || !motion) {
+      rows.forEach((r) => r.classList.toggle("is-out", !show(r)));
+      return;
+    }
+    const visible = rows.filter((r) => !r.classList.contains("is-out"));
+    gsap.to(visible, {
+      opacity: 0,
+      y: -10,
+      duration: 0.22,
+      stagger: 0.02,
+      onComplete: () => {
+        rows.forEach((r) => r.classList.toggle("is-out", !show(r)));
+        gsap.fromTo(rows.filter(show), { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, stagger: 0.04, ease: "power3.out", clearProps: "opacity,transform" });
+        refreshSoon();
+      },
+    });
+  }
+
+  $$(".filters button").forEach((b) => b.addEventListener("click", () => applyFilter(b.dataset.kind, true)));
+
+  /* ========================================================= formulaire */
+
+  const TYPE_WEIGHT = { landing: 22, vitrine: 16, shop: 42, saas: 56, app: 50, ai: 50 };
 
   function readForm() {
     const form = $("#cfg-form");
@@ -179,7 +366,7 @@
     const type = form.querySelector('input[name="type"]:checked');
     const when = form.querySelector('input[name="when"]:checked');
     const opts = $$('input[name="opt"]:checked', form);
-    const label = (input) => input ? input.nextElementSibling.textContent.trim() : "";
+    const label = (input) => (input ? input.nextElementSibling.textContent.trim() : "");
     return {
       typeKey: type ? type.value : "landing",
       type: label(type),
@@ -217,18 +404,15 @@
     if (!d) return;
     lastMessage = composeMessage(d);
     $("#cfg-msg").textContent = lastMessage;
-
     const score = Math.min(100, (TYPE_WEIGHT[d.typeKey] || 20) + d.opts.length * 7);
     $(".meter-bar i").style.width = score + "%";
     $(".meter-v").textContent = score + "%";
-
     const wa = $("#cfg-wa");
     if (wa && waNumber) wa.href = "https://wa.me/" + waNumber + "?text=" + encodeURIComponent(lastMessage);
   }
 
   function setStatus(text, isError) {
     const el = $("#cfg-status");
-    if (!el) return;
     el.textContent = text || "";
     el.classList.toggle("is-error", !!isError);
   }
@@ -246,13 +430,12 @@
       showContactError(true);
       const input = $("#f-contact");
       input.focus({ preventScroll: true });
-      if (lenis) lenis.scrollTo(input, { offset: -160, duration: 0.8 });
+      if (lenis) lenis.scrollTo(input, { offset: -180, duration: 0.8 });
       else input.scrollIntoView({ block: "center" });
-      if (gsap && !reduce) gsap.fromTo(input, { x: -8 }, { x: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
+      if (motion) gsap.fromTo(input, { x: -8 }, { x: 0, duration: 0.5, ease: "elastic.out(1, 0.3)" });
       return;
     }
     showContactError(false);
-
     const btn = $("#cfg-submit");
     const s = str();
     btn.disabled = true;
@@ -279,7 +462,7 @@
       setStatus("", false);
       showDone(true);
     } catch (err) {
-      const code = err.code || "offline";
+      const code = err.code || "server";
       if (code === "invalid_contact") showContactError(true);
       setStatus((s.errors && (s.errors[code] || s.errors.server)) || "", true);
     } finally {
@@ -290,22 +473,15 @@
 
   function showDone(on) {
     const done = $("#cfg-done");
-    const compose = $("#cfg-compose");
     done.hidden = !on;
-    compose.hidden = on;
-    if (on && gsap && !reduce) {
-      gsap.from(done.children, { y: 20, opacity: 0, stagger: 0.08, duration: 0.7, ease: "power3.out" });
-    }
-    if (window.ScrollTrigger) window.ScrollTrigger.refresh();
+    $("#cfg-compose").hidden = on;
+    if (on && motion) gsap.from(done.children, { y: 20, opacity: 0, stagger: 0.08, duration: 0.7, ease: "power3.out" });
+    refreshSoon();
   }
 
-  function initConfigurator() {
+  function initForm() {
     const form = $("#cfg-form");
-    if (!form) return;
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      submitForm();
-    });
+    form.addEventListener("submit", (e) => { e.preventDefault(); submitForm(); });
     form.addEventListener("input", (e) => {
       if (e.target.id === "f-contact") showContactError(false);
       updateMessage();
@@ -313,14 +489,13 @@
     form.addEventListener("change", (e) => {
       updateMessage();
       const chip = e.target.closest(".chip");
-      if (chip && gsap && !reduce) gsap.fromTo(chip.querySelector("span"), { scale: 0.9 }, { scale: 1, duration: 0.5, ease: "back.out(3)" });
+      if (chip && motion) gsap.fromTo(chip.querySelector("span"), { scale: 0.92 }, { scale: 1, duration: 0.5, ease: "back.out(3)" });
     });
     $("#cfg-again").addEventListener("click", () => {
       $("#f-details").value = "";
       updateMessage();
       showDone(false);
     });
-
     const copy = $("#cfg-copy");
     copy.addEventListener("click", () => {
       const labelEl = copy.querySelector("span");
@@ -337,77 +512,52 @@
         sel.addRange(range);
         flash(str().copyFail);
       };
-      try {
-        navigator.clipboard.writeText(lastMessage).then(() => flash(str().copied), selectText);
-      } catch (e) {
-        selectText();
-      }
+      try { navigator.clipboard.writeText(lastMessage).then(() => flash(str().copied), selectText); } catch (e) { selectText(); }
     });
   }
 
-  /* ================================================================ clock */
+  /* ======================================================= horloge, mots */
 
   function updateClock() {
     const el = $(".clock");
     if (!el) return;
-    try {
-      el.textContent = new Intl.DateTimeFormat(str().locale, {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date());
-    } catch (e) { /* fuseau inconnu : on laisse le tiret */ }
+    try { el.textContent = new Intl.DateTimeFormat(str().locale, { hour: "2-digit", minute: "2-digit" }).format(new Date()); } catch (e) { /* tiret */ }
   }
 
-  /* ============================================================== rotator */
-
   const rotator = (() => {
-    const box = $(".rotator");
     const word = $(".rot-word");
     let i = 0;
     let timer = null;
-
-    function reset() {
-      i = 0;
-      if (word) word.textContent = words()[0];
-      if (box) box.style.width = "";
-    }
-
+    function reset() { i = 0; if (word) word.textContent = words()[0]; }
     function next() {
-      if (!box || !word || document.hidden || !gsap) return;
+      if (!word || document.hidden || !motion) return;
       const list = words();
       i = (i + 1) % list.length;
-      const w0 = box.getBoundingClientRect().width;
       gsap.timeline()
-        .to(word, { yPercent: -140, duration: 0.42, ease: "power3.in" })
-        .add(() => {
-          word.textContent = list[i];
-          box.style.width = "";
-          const w1 = box.getBoundingClientRect().width;
-          if (getComputedStyle(box).display !== "block") {
-            gsap.fromTo(box, { width: w0 }, { width: w1, duration: 0.55, ease: "power3.inOut", clearProps: "width" });
-          }
-        })
-        .fromTo(word, { yPercent: 140 }, { yPercent: 0, duration: 0.65, ease: "power3.out" });
+        .to(word, { yPercent: -110, duration: 0.45, ease: "power3.in" })
+        .add(() => { word.textContent = list[i]; })
+        .fromTo(word, { yPercent: 110 }, { yPercent: 0, duration: 0.7, ease: "power3.out" });
     }
-
-    function start() {
-      if (reduce || timer) return;
-      timer = setInterval(next, 2600);
-    }
-
+    function start() { if (motion && !timer) timer = setInterval(next, 2800); }
     return { reset, start };
   })();
 
-  /* ======================================================= smooth scroll */
+  /* ======================================================== defilement */
 
   let lenis = null;
 
   function initScroll() {
-    if (!gsap || reduce || typeof window.Lenis !== "function") return;
-    lenis = new window.Lenis({ lerp: 0.09, smoothWheel: true });
-    lenis.on("scroll", window.ScrollTrigger.update);
+    if (!motion || typeof window.Lenis !== "function") return;
+    lenis = new window.Lenis({ lerp: 0.085, smoothWheel: true });
+    lenis.on("scroll", ST.update);
     gsap.ticker.add((t) => lenis.raf(t * 1000));
     gsap.ticker.lagSmoothing(0);
+  }
+
+  function goTo(target) {
+    if (lenis) lenis.scrollTo(target, { duration: 1.6, offset: 0 });
+    else if (target === 0) scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    else target.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
   }
 
   document.addEventListener("click", (e) => {
@@ -418,15 +568,72 @@
     const target = id === "#top" ? 0 : $(id);
     if (target === null) return;
     e.preventDefault();
-    if (lenis) lenis.scrollTo(target, { duration: 1.5, offset: 0 });
-    else if (target === 0) scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-    else target.scrollIntoView({ behavior: reduce ? "auto" : "smooth" });
+    if (menuOpen) toggleMenu(false);
+    goTo(target);
   });
 
-  /* =============================================================== cursor */
+  let refreshTimer = null;
+  function refreshSoon(delay = 120) {
+    if (!motion) return;
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => ST.refresh(), delay);
+  }
+
+  /* ============================================================== menu */
+
+  let menuOpen = false;
+  function toggleMenu(open) {
+    const menu = $("#menu");
+    const btn = $(".menu-btn");
+    menuOpen = open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) {
+      menu.hidden = false;
+      if (lenis) lenis.stop();
+      if (motion) {
+        gsap.fromTo(menu, { clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0% 0)", duration: 0.7, ease: "expo.out" });
+        gsap.fromTo($$(".menu-links a span", menu), { yPercent: 110 }, { yPercent: 0, duration: 0.8, stagger: 0.06, ease: "expo.out", delay: 0.1 });
+      }
+    } else {
+      if (lenis) lenis.start();
+      if (motion) gsap.to(menu, { clipPath: "inset(0 0 100% 0)", duration: 0.5, ease: "expo.in", onComplete: () => { menu.hidden = true; } });
+      else menu.hidden = true;
+    }
+  }
+  $(".menu-btn").addEventListener("click", () => toggleMenu(!menuOpen));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menuOpen) toggleMenu(false); });
+
+  /* ======================================================= services, faq */
+
+  $$(".svc-head").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const li = btn.closest(".svc");
+      const open = !li.classList.contains("is-open");
+      li.classList.toggle("is-open", open);
+      btn.setAttribute("aria-expanded", String(open));
+      refreshSoon(760);
+    });
+  });
+
+  $$(".qa").forEach((qa) => {
+    const sum = $("summary", qa);
+    const body = $(".qa-a", qa);
+    sum.addEventListener("click", (e) => {
+      if (!motion) return;
+      e.preventDefault();
+      if (qa.open) {
+        gsap.to(body, { height: 0, duration: 0.45, ease: "power3.inOut", onComplete: () => { qa.open = false; gsap.set(body, { clearProps: "height" }); refreshSoon(); } });
+      } else {
+        qa.open = true;
+        gsap.fromTo(body, { height: 0 }, { height: "auto", duration: 0.6, ease: "power3.out", clearProps: "height", onComplete: () => refreshSoon() });
+      }
+    });
+  });
+
+  /* ============================================================ curseur */
 
   function initCursor() {
-    if (!finePointer || reduce || !gsap) return;
+    if (!finePointer || !motion) return;
     const cur = $(".cursor");
     const dot = $(".cursor-dot");
     const ring = $(".cursor-ring");
@@ -434,901 +641,673 @@
     gsap.set([dot, ring], { xPercent: -50, yPercent: -50 });
     const dx = gsap.quickTo(dot, "x", { duration: 0.08, ease: "power3" });
     const dy = gsap.quickTo(dot, "y", { duration: 0.08, ease: "power3" });
-    const rx = gsap.quickTo(ring, "x", { duration: 0.45, ease: "power3" });
-    const ry = gsap.quickTo(ring, "y", { duration: 0.45, ease: "power3" });
+    const rx = gsap.quickTo(ring, "x", { duration: 0.42, ease: "power3" });
+    const ry = gsap.quickTo(ring, "y", { duration: 0.42, ease: "power3" });
     let shown = false;
-
     addEventListener("pointermove", (e) => {
       if (!shown) { shown = true; gsap.to([dot, ring], { opacity: 1, duration: 0.3 }); }
       dx(e.clientX); dy(e.clientY); rx(e.clientX); ry(e.clientY);
     }, { passive: true });
     document.addEventListener("pointerleave", () => { shown = false; gsap.to([dot, ring], { opacity: 0, duration: 0.3 }); });
-
     document.addEventListener("pointerover", (e) => {
       const labelled = e.target.closest("[data-cursor]");
-      const link = e.target.closest("a, button, label.chip, summary, input");
-      if (labelled) {
-        const key = labelled.dataset.cursor;
-        label.textContent = key === "demo" ? str().cursorDemo : str().cursorVisit;
-      }
+      const link = e.target.closest("a, button, label.chip, summary, input, textarea");
+      if (labelled) label.textContent = labelled.dataset.cursor === "demo" ? str().cursorDemo : str().cursorVisit;
       cur.classList.toggle("has-label", !!labelled);
       cur.classList.toggle("is-link", !labelled && !!link);
     });
   }
 
-  /* ============================================================ magnetic */
-
   function initMagnetic() {
-    if (!finePointer || reduce || !gsap) return;
+    if (!finePointer || !motion) return;
     $$(".magnetic").forEach((el) => {
       const xTo = gsap.quickTo(el, "x", { duration: 0.8, ease: "elastic.out(1, 0.4)" });
       const yTo = gsap.quickTo(el, "y", { duration: 0.8, ease: "elastic.out(1, 0.4)" });
       el.addEventListener("pointermove", (e) => {
         const r = el.getBoundingClientRect();
-        xTo((e.clientX - r.left - r.width / 2) * 0.32);
-        yTo((e.clientY - r.top - r.height / 2) * 0.4);
+        xTo((e.clientX - r.left - r.width / 2) * 0.3);
+        yTo((e.clientY - r.top - r.height / 2) * 0.38);
       });
       el.addEventListener("pointerleave", () => { xTo(0); yTo(0); });
     });
   }
 
-  /* ================================================ bento spotlight + tilt */
-
-  function initPointerFx() {
-    if (!finePointer) return;
-    $$(".bcard").forEach((c) => {
-      c.addEventListener("pointermove", (e) => {
-        const r = c.getBoundingClientRect();
-        c.style.setProperty("--mx", e.clientX - r.left + "px");
-        c.style.setProperty("--my", e.clientY - r.top + "px");
-      });
+  // Apercu flottant de l'index : suit la souris et penche selon la vitesse.
+  function initPeek() {
+    if (!finePointer || !motion) return;
+    const peek = $(".peek");
+    const inner = $(".peek-in");
+    const xTo = gsap.quickTo(peek, "x", { duration: 0.6, ease: "power3" });
+    const yTo = gsap.quickTo(peek, "y", { duration: 0.6, ease: "power3" });
+    const rTo = gsap.quickTo(peek, "rotation", { duration: 0.8, ease: "power3" });
+    let lastX = 0;
+    let current = -1;
+    gsap.set(peek, { xPercent: -50, yPercent: -50 });
+    const rows = $("#rows");
+    rows.addEventListener("pointermove", (e) => {
+      xTo(e.clientX); yTo(e.clientY);
+      rTo(clamp((e.clientX - lastX) * 0.6, -14, 14));
+      lastX = e.clientX;
     });
-    if (reduce || !gsap) return;
-
-    // Leger tilt 3D des maquettes. Il agit sur le conteneur, le scroll agit
-    // sur la fenetre : les deux transformations ne se marchent pas dessus.
-    $$(".project-visual").forEach((v) => {
-      const rxTo = gsap.quickTo(v, "rotationX", { duration: 0.8, ease: "power3" });
-      const ryTo = gsap.quickTo(v, "rotationY", { duration: 0.8, ease: "power3" });
-      gsap.set(v, { transformPerspective: 1400 });
-      v.addEventListener("pointermove", (e) => {
-        const r = v.getBoundingClientRect();
-        ryTo(((e.clientX - r.left) / r.width - 0.5) * 8);
-        rxTo(-((e.clientY - r.top) / r.height - 0.5) * 6);
-      });
-      v.addEventListener("pointerleave", () => { rxTo(0); ryTo(0); });
+    rows.addEventListener("pointerover", (e) => {
+      const a = e.target.closest(".row-a");
+      if (!a) return;
+      const i = Number(a.dataset.i);
+      const p = projects[i];
+      if (!p || !p.cover || i === current) return;
+      current = i;
+      const img = h("img", { src: p.cover, alt: "" });
+      inner.append(img);
+      gsap.fromTo(img, { clipPath: "inset(100% 0 0 0)", scale: 1.2 }, { clipPath: "inset(0% 0 0 0)", scale: 1, duration: 0.6, ease: "expo.out" });
+      while (inner.children.length > 3) inner.firstChild.remove();
+      gsap.to(peek, { autoAlpha: 1, scale: 1, duration: 0.4, ease: "power3.out" });
     });
-
-    // Parallaxe souris du hero : les cartes et la lueur derivent en sens opposes.
-    const hero = $(".hero");
-    const cards = $(".hero-cards");
-    const glow = $(".hero-glow");
-    const cx = gsap.quickTo(cards, "x", { duration: 1.2, ease: "power3" });
-    const cy = gsap.quickTo(cards, "y", { duration: 1.2, ease: "power3" });
-    const gx = gsap.quickTo(glow, "x", { duration: 2, ease: "power3" });
-    const gy = gsap.quickTo(glow, "y", { duration: 2, ease: "power3" });
-    hero.addEventListener("pointermove", (e) => {
-      const nx = e.clientX / innerWidth - 0.5;
-      const ny = e.clientY / innerHeight - 0.5;
-      if (matchMedia("(min-width: 801px)").matches) { cx(nx * -36); cy(ny * -26); }
-      gx(nx * 80); gy(ny * 60);
+    rows.addEventListener("pointerleave", () => {
+      current = -1;
+      gsap.to(peek, { autoAlpha: 0, scale: 0.85, duration: 0.35, ease: "power2.in" });
     });
   }
 
-  /* ================================================================= map */
-
-  const map = (() => {
-    // Globe terrestre en points : il tourne avec le scroll, les points
-    // s'allument, puis des liaisons relient de grandes villes. Aucun pays
-    // n'est nomme : c'est l'idee d'une clientele partout dans le monde.
-    const canvas = $(".map-canvas");
-    const P = window.GLOBE_DATA;
-    if (!canvas || !P) return null;
-    const ctx = canvas.getContext("2d");
-    const RAD = Math.PI / 180;
-    const TILT = 18 * RAD;
-
-    const pts = [];
-    for (let i = 0; i < P.length; i += 2) {
-      const lon = P[i] / 10, lat = P[i + 1] / 10;
-      // Ordre d'allumage pseudo-aleatoire mais stable d'un rendu a l'autre.
-      const k = Math.sin(lon * 12.9898 + lat * 78.233) * 43758.5453;
-      pts.push({ lon: lon * RAD, lat: lat * RAD, order: k - Math.floor(k) });
-    }
-    pts.sort((a, b) => a.order - b.order);
-
-    const CITIES = {
-      ny: [-74, 40.7], mtl: [-73.6, 45.5], sp: [-46.6, -23.5], ldn: [-0.1, 51.5],
-      par: [2.35, 48.86], ist: [29, 41], dxb: [55.3, 25.2], sin: [103.8, 1.35],
-      tyo: [139.7, 35.7], lag: [3.4, 6.5],
-    };
-    const ARCS = [["par", "ny"], ["ldn", "mtl"], ["par", "dxb"], ["dxb", "sin"], ["ny", "sp"], ["ist", "ldn"], ["dxb", "lag"], ["sin", "tyo"]];
-    const vec = ([lon, lat]) => {
-      const l = lon * RAD, f = lat * RAD;
-      return [Math.cos(f) * Math.cos(l), Math.cos(f) * Math.sin(l), Math.sin(f)];
-    };
-
-    let W = 0, H = 0, dpr = 1, R = 1, cx = 0, cy = 0;
-    let progress = reduce ? 1 : 0;
-    let spin = 0;
-    let running = false;
-
-    function colors() {
-      const cs = getComputedStyle(root);
-      return {
-        fg: cs.getPropertyValue("--fg").trim() || "#f2efe8",
-        accent: cs.getPropertyValue("--accent").trim() || "#e8b84a",
-        accent2: cs.getPropertyValue("--accent2").trim() || "#9b6bff",
-      };
-    }
-
-    function resize() {
-      const rect = canvas.getBoundingClientRect();
-      if (!rect.width) return;
-      dpr = Math.min(devicePixelRatio || 1, 2);
-      W = rect.width;
-      H = rect.height;
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
-      R = Math.min(W, H) * 0.44;
-      cx = W / 2;
-      cy = H / 2;
-      draw();
-    }
-
-    // Projection orthographique ; renvoie aussi la profondeur (cos c).
-    function project(lon, lat, lon0, k = 1) {
-      const d = lon - lon0;
-      const cosLat = Math.cos(lat);
-      const depth = Math.sin(TILT) * Math.sin(lat) + Math.cos(TILT) * cosLat * Math.cos(d);
-      return {
-        x: cx + k * R * cosLat * Math.sin(d),
-        y: cy - k * R * (Math.cos(TILT) * Math.sin(lat) - Math.sin(TILT) * cosLat * Math.cos(d)),
-        depth,
-      };
-    }
-
-    function slerp(a, b, t) {
-      const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
-      const om = Math.acos(dot);
-      const so = Math.sin(om) || 1;
-      const s1 = Math.sin((1 - t) * om) / so, s2 = Math.sin(t * om) / so;
-      const x = s1 * a[0] + s2 * b[0], y = s1 * a[1] + s2 * b[1], z = s1 * a[2] + s2 * b[2];
-      return [Math.atan2(y, x), Math.asin(Math.max(-1, Math.min(1, z)))];
-    }
-
-    function draw() {
-      if (!W) return;
-      const col = colors();
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
-
-      // Le globe tourne de l'Atlantique vers l'Asie pendant le scroll.
-      const lon0 = (-55 + progress * 130 + spin) * RAD;
-
-      // Halo et disque.
-      const halo = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R * 1.25);
-      halo.addColorStop(0, "rgba(0,0,0,0)");
-      halo.addColorStop(0.6, col.accent2);
-      halo.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.14;
-      ctx.fillStyle = halo;
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 1.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 0.05;
-      ctx.fillStyle = col.fg;
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 0.18;
-      ctx.strokeStyle = col.fg;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Points : ceux allumes passent a la couleur d'accent.
-      const lit = Math.floor(Math.min(1, progress / 0.6) * pts.length);
-      const base = Math.max(1.1, R * 0.0105);
-      for (let pass = 0; pass < 2; pass++) {
-        ctx.fillStyle = pass ? col.accent : col.fg;
-        for (let i = pass ? 0 : lit; i < (pass ? lit : pts.length); i++) {
-          const q = pts[i];
-          const pr = project(q.lon, q.lat, lon0);
-          if (pr.depth <= 0) continue;
-          ctx.globalAlpha = pass ? 0.35 + 0.65 * pr.depth : 0.1 + 0.3 * pr.depth;
-          const r = base * (0.55 + 0.45 * pr.depth);
-          ctx.fillRect(pr.x - r, pr.y - r, r * 2, r * 2);
-        }
-      }
-
-      // Liaisons entre villes, en arc au-dessus de la surface.
-      const p2 = Math.max(0, Math.min(1, (progress - 0.4) / 0.5));
-      if (p2 > 0) {
-        ctx.lineWidth = 1.6;
-        ctx.strokeStyle = col.accent2;
-        ARCS.forEach(([a, b], n) => {
-          const t = Math.max(0, Math.min(1, p2 * 1.8 - n * 0.1));
-          if (!t) return;
-          const va = vec(CITIES[a]), vb = vec(CITIES[b]);
-          ctx.globalAlpha = 0.9;
-          ctx.beginPath();
-          let pen = false;
-          let head = null;
-          for (let s2 = 0; s2 <= 48; s2++) {
-            const u = (s2 / 48) * t;
-            const [lon, lat] = slerp(va, vb, u);
-            const pr = project(lon, lat, lon0, 1 + 0.2 * Math.sin(Math.PI * u));
-            if (pr.depth < -0.12) { pen = false; head = null; continue; }
-            if (pen) ctx.lineTo(pr.x, pr.y); else ctx.moveTo(pr.x, pr.y);
-            pen = true;
-            head = pr;
-          }
-          ctx.stroke();
-          if (head) {
-            ctx.fillStyle = col.accent2;
-            ctx.beginPath();
-            ctx.arc(head.x, head.y, 3, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        });
-        // Villes reliees : un point et une onde.
-        const pulse = (performance.now() / 1600) % 1;
-        Object.values(CITIES).forEach(([lon, lat]) => {
-          const pr = project(lon * RAD, lat * RAD, lon0);
-          if (pr.depth <= 0.05) return;
-          ctx.globalAlpha = p2;
-          ctx.fillStyle = col.fg;
-          ctx.beginPath();
-          ctx.arc(pr.x, pr.y, 2.6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = p2 * (1 - pulse) * 0.8;
-          ctx.strokeStyle = col.accent;
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.arc(pr.x, pr.y, 3 + pulse * 12, 0, Math.PI * 2);
-          ctx.stroke();
-        });
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    let last = 0;
-    function loop(time) {
-      const dt = last ? Math.min(0.05, (time - last) / 1000) : 0;
-      last = time;
-      spin = (spin + dt * 4) % 360;
-      draw();
-    }
-
-    function setRunning(on) {
-      if (reduce || !gsap || on === running) return;
-      running = on;
-      last = 0;
-      if (on) gsap.ticker.add(loop); else gsap.ticker.remove(loop);
-    }
-
-    return {
-      resize,
-      draw,
-      setProgress(p) { progress = p; if (!running) draw(); },
-      setRunning,
-    };
-  })();
-
-  /* ============================================================ chameleon */
+  /* ============================================================ theme */
 
   const DEFAULT_THEME = { bg: "#0a0a0d", fg: "#f2efe8", accent: "#e8b84a", accent2: "#9b6bff" };
   const themeMeta = $('meta[name="theme-color"]');
-
-  function themeOf(el) {
-    return {
-      bg: el.dataset.bg || DEFAULT_THEME.bg,
-      fg: el.dataset.fg || DEFAULT_THEME.fg,
-      accent: el.dataset.accent || DEFAULT_THEME.accent,
-      accent2: el.dataset.accent2 || DEFAULT_THEME.accent2,
-    };
-  }
-
-  let currentTheme = null;
+  let themeKey = "";
   function setTheme(t) {
     const key = t.bg + t.fg + t.accent + t.accent2;
-    if (key === currentTheme) return;
-    currentTheme = key;
+    if (key === themeKey) return;
+    themeKey = key;
     if (themeMeta) themeMeta.content = t.bg;
-    gsap.to(root, {
-      "--bg": t.bg,
-      "--fg": t.fg,
-      "--accent": t.accent,
-      "--accent2": t.accent2,
-      duration: reduce ? 0 : 0.9,
-      ease: "power2.out",
-      overwrite: "auto",
-    });
+    gsap.to(root, { "--bg": t.bg, "--fg": t.fg, "--accent": t.accent, "--accent2": t.accent2, duration: 0.7, ease: "power2.out", overwrite: "auto" });
   }
 
-  /* =============================================================== helpers */
+  /* ============================================================== orbe */
 
-  function fmt(n, sep) {
-    const s = String(Math.round(n));
-    return sep ? s.replace(/\B(?=(\d{3})+(?!\d))/g, sep) : s;
+  const OrbLib = window.BornzOrb;
+  const rgb = OrbLib ? OrbLib.rgb : () => [0, 0, 0];
+  const mixRgb = OrbLib ? OrbLib.mixRgb : (a) => a;
+  const WHITE = [1, 1, 1];
+  const BRAND = { c1: rgb("#e8b84a"), c2: rgb("#ff5a1f"), c3: rgb("#9b6bff"), c4: rgb("#2fd3e6") };
+  const paletteOf = (p) => {
+    const c1 = rgb(p.accent);
+    const c3 = rgb(p.accent2);
+    return { c1, c2: mixRgb(c1, WHITE, 0.28), c3, c4: mixRgb(c3, WHITE, 0.32) };
+  };
+
+  const orb = {
+    gl: null,
+    mode: "intro",
+    modeAt: 0,
+    loaderR: 0,
+    intro: { grow: 0, implode: 0 },
+    s: { x: innerWidth / 2, y: innerHeight / 2, r: 0, dim: 0, inside: 0, alpha: 1, energy: 0, lx: 0, ly: 0, c1: BRAND.c1.slice(), c2: BRAND.c2.slice(), c3: BRAND.c3.slice(), c4: BRAND.c4.slice(), bg: rgb("#0a0a0d") },
+    flow: 0,
+    mouse: { x: innerWidth * 0.6, y: innerHeight * 0.4, speed: 0, seen: false },
+    back: null,
+    slow: 16,
+    frames: 0,
+  };
+
+  let introST = null;
+  let introOutST = null;
+  let worksST = null;
+  let worksTL = null;
+  let worksMeta = null;
+
+  const centerOf = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width) return null;
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: r.width / 2 };
+  };
+
+  function worksPhase() {
+    const { n, L, hold } = worksMeta;
+    if (n < 2) return { from: 0, to: 0, f: 0 };
+    const t = worksTL.time() - hold;
+    if (t <= 0) return { from: 0, to: 1, f: 0 };
+    const i = Math.min(n - 2, Math.floor(t / L));
+    const f = clamp((t - i * L) / 1, 0, 1);
+    return { from: i, to: i + 1, f: easeIO(f) };
   }
 
-  function countUp(el, duration = 1.6) {
-    const to = Number(el.dataset.to || 0);
-    const sep = el.dataset.sep || "";
-    const o = { v: 0 };
-    el.textContent = fmt(0, sep);
-    return gsap.to(o, {
-      v: to,
-      duration,
-      ease: "power2.out",
-      onUpdate: () => { el.textContent = fmt(o.v, sep); },
-    });
+  function resolveMode(y, vh) {
+    if (root.classList.contains("is-loading")) return "loading";
+    if (introST && y < (introOutST ? introOutST.end : introST.end) - 2) return "intro";
+    if (worksST && y >= worksST.start - vh * 0.75 && y <= worksST.end + vh * 0.35) return "works";
+    const foot = $("#footer");
+    if (foot && ST && y > ST.maxScroll(window) - foot.offsetHeight - 4) return "footer";
+    return "none";
   }
 
-  const isArabic = () => lang === "ar";
-
-  /* ================================================================ build */
-
-  let mm = null;
-  let heroIntro = null;
-
-  function build(first) {
-    const ST = window.ScrollTrigger;
-    const Split = window.SplitText;
-    mm = gsap.matchMedia();
-
-    mm.add(
-      {
-        desktop: "(min-width: 901px)",
-        mobile: "(max-width: 900px)",
-        motion: "(prefers-reduced-motion: no-preference)",
-      },
-      (ctx) => {
-        const { desktop, motion } = ctx.conditions;
-        const cleanups = [];
-
-        /* ---- Chameleon : chaque section [data-bg] repeint la page ----- */
-        // Le tableau existe avant les declencheurs : un onToggle peut partir
-        // des la creation si la page est deja scrollee (changement de langue).
-        const themeTriggers = [];
-        $$("[data-bg]").forEach((el) => {
-          themeTriggers.push(ST.create({
-            trigger: el,
-            start: "top 55%",
-            end: "bottom 55%",
-            onToggle: () => {
-              const active = themeTriggers.filter((t) => t.isActive).pop();
-              setTheme(active ? themeOf(active.trigger) : DEFAULT_THEME);
-            },
-          }));
-        });
-
-        /* ---- Nav : fond au scroll, masquee en descendant ------------- */
-        const nav = $(".nav");
-        ST.create({
-          start: 0,
-          end: "max",
-          onUpdate(self) {
-            const y = self.scroll();
-            nav.classList.toggle("is-scrolled", y > 40);
-            nav.classList.toggle("is-hidden", self.direction === 1 && y > 500);
-          },
-        });
-        $$(".nav-links a").forEach((a) => {
-          const sec = $(a.getAttribute("href"));
-          if (!sec) return;
-          ST.create({
-            trigger: sec,
-            start: "top 50%",
-            end: "bottom 50%",
-            onToggle: (self) => a.classList.toggle("is-active", self.isActive),
-          });
-        });
-
-        /* ---- Carte : progression pilotee par le scroll -------------- */
-        if (map) {
-          map.resize();
-          const onResize = () => map.resize();
-          addEventListener("resize", onResize);
-          cleanups.push(() => removeEventListener("resize", onResize));
-          if (motion) {
-            const proxy = { p: 0 };
-            gsap.to(proxy, {
-              p: 1,
-              ease: "none",
-              onUpdate: () => map.setProgress(proxy.p),
-              scrollTrigger: { trigger: ".reach", start: "top 70%", end: "bottom 65%", scrub: 0.6 },
-            });
-            ST.create({
-              trigger: ".reach",
-              start: "top bottom",
-              end: "bottom top",
-              onToggle: (self) => map.setRunning(self.isActive),
-            });
-            cleanups.push(() => map.setRunning(false));
-          } else {
-            map.setProgress(1);
-          }
-        }
-
-        if (!motion) {
-          root.classList.remove("anim");
-          ST.sort();
-          return () => cleanups.forEach((f) => f());
-        }
-        root.classList.add("anim");
-
-        /* ---- Barre de progression ----------------------------------- */
-        gsap.to(".progress", { scaleX: 1, ease: "none", scrollTrigger: { start: 0, end: "max", scrub: 0.3 } });
-
-        /* ---- Hero : intro (premier chargement) ---------------------- */
-        const heroSplitType = isArabic() ? "words" : "words,chars";
-        const heroSplit = Split.create(".hero-title .l1, .hero-title .l2-pre", {
-          type: heroSplitType,
-          mask: "words",
-        });
-        if (first) {
-          heroIntro = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } })
-            .from(isArabic() ? heroSplit.words : heroSplit.chars, { yPercent: 115, duration: 1.2, stagger: 0.028 })
-            .from(".rot-word", { yPercent: 115, duration: 1.2 }, 0.35)
-            .from(".hero-status", { y: 20, opacity: 0, duration: 1 }, 0.1)
-            .from(".hero-sub", { y: 30, opacity: 0, duration: 1.1 }, 0.45)
-            .from(".hero-ctas > *", { y: 30, opacity: 0, duration: 1, stagger: 0.08 }, 0.55)
-            .from(".hcard", { scale: 0.4, opacity: 0, yPercent: 80, duration: 1.4, stagger: 0.1, ease: "back.out(1.6)" }, 0.5)
-            .from(".hero-foot", { opacity: 0, duration: 1 }, 0.9);
-        }
-
-        /* ---- Hero : sortie au scroll -------------------------------- */
-        const heroOut = gsap.timeline({
-          scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true },
-        });
-        heroOut
-          .to(".hero-inner", { yPercent: 22, scale: 0.94, opacity: 0.1, ease: "none" }, 0)
-          .to(".hero-glow", { yPercent: 30, ease: "none" }, 0)
-          .to(".hero-grid", { yPercent: 18, opacity: 0, ease: "none" }, 0);
-        if (desktop) {
-          const out = [
-            { x: 260, y: -260, rotation: 28 },
-            { x: -120, y: 320, rotation: -34 },
-            { x: 320, y: 180, rotation: 22 },
-            { x: -260, y: -300, rotation: -26 },
-          ];
-          $$(".hcard").forEach((c, i) => heroOut.to(c, { ...out[i], ease: "none" }, 0));
-        }
-
-        /* ---- Marquee : boucle infinie + acceleration au scroll ------- */
-        const loops = [];
-        $$(".mq-row").forEach((row, i) => {
-          const track = $(".mq-track", row);
-          const group = $(".mq-group", track);
-          $$(".mq-clone", track).forEach((n) => n.remove());
-          const w = group.getBoundingClientRect().width;
-          if (!w) return;
-          const copies = Math.ceil((row.getBoundingClientRect().width * 1.2) / w) + 1;
-          for (let k = 0; k < copies; k++) {
-            const c = group.cloneNode(true);
-            c.classList.add("mq-clone");
-            c.removeAttribute("data-i18n");
-            c.setAttribute("aria-hidden", "true");
-            track.appendChild(c);
-          }
-          const reverse = i % 2 === 1;
-          loops.push(
-            gsap.fromTo(track, { x: reverse ? -w : 0 }, { x: reverse ? 0 : -w, duration: w / 70, ease: "none", repeat: -1 })
-          );
-        });
-        const skew = gsap.quickTo(".mq-track", "skewX", { duration: 0.4, ease: "power3" });
-        ST.create({
-          trigger: ".marquee",
-          start: "top bottom",
-          end: "bottom top",
-          onUpdate(self) {
-            const v = self.getVelocity();
-            const boost = 1 + Math.min(Math.abs(v) / 350, 6);
-            loops.forEach((t) => {
-              gsap.killTweensOf(t, "timeScale");
-              t.timeScale(boost);
-              gsap.to(t, { timeScale: 1, duration: 1.2, ease: "power2.out" });
-            });
-            skew(gsap.utils.clamp(-12, 12, v / -220));
-          },
-        });
-        cleanups.push(() => { $$(".mq-clone").forEach((n) => n.remove()); gsap.set(".mq-track", { clearProps: "all" }); });
-
-        /* ---- Manifeste : les mots s'allument un par un -------------- */
-        const man = Split.create(".manifesto-text", { type: "words" });
-        gsap.fromTo(man.words, { opacity: 0.12 }, {
-          opacity: 1,
-          stagger: 0.12,
-          ease: "none",
-          scrollTrigger: { trigger: ".manifesto-text", start: "top 78%", end: "bottom 45%", scrub: true },
-        });
-        gsap.from(".manifesto .eyebrow", { x: -30, opacity: 0, duration: 1, ease: "expo.out", scrollTrigger: { trigger: ".manifesto", start: "top 75%" } });
-
-        /* ---- Titres de section : lignes qui montent ----------------- */
-        $$(".split-lines").forEach((el) => {
-          Split.create(el, {
-            type: "lines",
-            mask: "lines",
-            autoSplit: true,
-            onSplit: (self) =>
-              gsap.from(self.lines, {
-                yPercent: 110,
-                duration: 1.2,
-                stagger: 0.1,
-                ease: "expo.out",
-                scrollTrigger: { trigger: el, start: "top 85%", once: true },
-              }),
-          });
-        });
-        $$(".sec-head").forEach((head) => {
-          const bits = $$(".eyebrow, .sec-lead", head);
-          if (!bits.length) return;
-          gsap.from(bits, { y: 26, opacity: 0, duration: 1, stagger: 0.12, ease: "power3.out", scrollTrigger: { trigger: head, start: "top 82%", once: true } });
-        });
-
-        /* ---- Projets ------------------------------------------------ */
-        $$(".project").forEach((p) => {
-          const browser = $(".browser", p);
-          const rev = p.classList.contains("p-rev");
-          gsap.from($$(".project-info > *", p), {
-            y: 44,
-            opacity: 0,
-            duration: 1,
-            stagger: 0.07,
-            ease: "power3.out",
-            scrollTrigger: { trigger: p, start: "top 68%", once: true },
-          });
-          gsap.from($(".p-name", p), {
-            letterSpacing: "0.04em",
-            duration: 1.6,
-            ease: "expo.out",
-            scrollTrigger: { trigger: p, start: "top 68%", once: true },
-          });
-          // Entree 3D : la fenetre se redresse en arrivant.
-          gsap.fromTo(browser,
-            { rotationX: 24, rotationY: rev ? 16 : -16, scale: 0.84, y: 90, transformPerspective: 1400 },
-            { rotationX: 0, rotationY: 0, scale: 1, y: 0, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "center 58%", scrub: 1 } });
-          // Sortie : la fenetre file un peu plus vite que la page.
-          gsap.to(browser, {
-            yPercent: -12,
-            ease: "none",
-            scrollTrigger: { trigger: p, start: "center 58%", end: "bottom top", scrub: 1 },
-          });
-
-          // Contenu vivant de chaque maquette, joue a l'arrivee.
-          const tl = gsap.timeline({ paused: true });
-          $$(".count", p).forEach((c) => tl.add(countUp(c, 1.4), 0.2));
-          ST.create({ trigger: p, start: "top 60%", once: true, onEnter: () => tl.play() });
-
-          if (p.id === "p-exporter") {
-            const spark = $(".spark", p);
-            const len = spark.getTotalLength();
-            gsap.set(spark, { strokeDasharray: len, strokeDashoffset: len });
-            tl.to(spark, { strokeDashoffset: 0, duration: 1.4, ease: "power2.inOut" }, 0.3)
-              .from($$(".ex-row, .ex-rate, .ex-total", p), { x: 24, opacity: 0, stagger: 0.08, duration: 0.7, ease: "power3.out" }, 0)
-              .from($$(".ex-thumbs span", p), { scale: 0.6, opacity: 0, stagger: 0.1, duration: 0.8, ease: "back.out(2)" }, 0.4);
-            gsap.to($(".ex-photo", p), { yPercent: 8, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
-          }
-
-          if (p.id === "p-lab") {
-            tl.from($$(".lab-card", p), { scale: 0.5, opacity: 0, stagger: 0.12, duration: 0.8, ease: "back.out(2)" }, 0)
-              .from($$(".lab-timeline i", p), { scaleY: 0, stagger: 0.05, duration: 0.5, ease: "power3.out" }, 0.2);
-            // Les cartes derivent a des vitesses differentes : profondeur.
-            $$(".lab-card", p).forEach((c, i) => {
-              gsap.to(c, { y: [-30, 26, -18, 34][i], ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
-            });
-          }
-
-          if (p.id === "p-hooked") {
-            tl.from($$(".hk-mods i", p), { "--p": 0, stagger: 0.1, duration: 1.2, ease: "power3.out" }, 0.2)
-              .from($(".hk-badge", p), { scale: 0.6, opacity: 0, duration: 0.8, ease: "back.out(2.4)" }, 0.5);
-            gsap.fromTo($(".hk-big", p), { yPercent: 20, rotation: -8 }, { yPercent: -10, rotation: 0, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
-          }
-
-          if (p.id === "p-swiftly") {
-            const models = ["Claude 4.6 Opus", "GPT-5.2 Pro", "Gemini 3 Pro", "DeepSeek V4", "Grok 4.1", "FLUX.2 Max"];
-            const nameEl = $(".sw-model-name", p);
-            const lines = $$(".sw-line", p);
-            let mi = 0;
-            let timer = null;
-            const type = () => gsap.fromTo(lines, { scaleX: 0 }, { scaleX: 1, duration: 0.5, stagger: 0.18, ease: "power2.out" });
-            const cycle = () => {
-              mi = (mi + 1) % models.length;
-              gsap.timeline()
-                .to(nameEl, { yPercent: -60, opacity: 0, duration: 0.25, ease: "power2.in" })
-                .add(() => { nameEl.textContent = models[mi]; })
-                .fromTo(nameEl, { yPercent: 60, opacity: 0 }, { yPercent: 0, opacity: 1, duration: 0.35, ease: "power2.out" })
-                .add(type, 0.2);
-            };
-            tl.from($(".sw-user", p), { y: 20, opacity: 0, duration: 0.6, ease: "power3.out" }, 0)
-              .add(type, 0.5);
-            ST.create({
-              trigger: p,
-              start: "top 60%",
-              end: "bottom 30%",
-              onToggle(self) {
-                clearInterval(timer);
-                timer = self.isActive ? setInterval(cycle, 2200) : null;
-              },
-            });
-            cleanups.push(() => { clearInterval(timer); nameEl.textContent = models[0]; });
-          }
-
-          if (p.id === "p-villa") {
-            // Le plan se dessine trait par trait, les typologies arrivent ensuite.
-            tl.fromTo($$(".vl-plan .pl", p), { strokeDashoffset: 1 }, { strokeDashoffset: 0, duration: 1.4, stagger: 0.12, ease: "power2.inOut" }, 0.1)
-              .from($$(".vl-plan text", p), { opacity: 0, y: 4, stagger: 0.08, duration: 0.5 }, 0.9)
-              .from($$(".vl-types li", p), { y: 14, opacity: 0, stagger: 0.08, duration: 0.6, ease: "power3.out" }, 0.3);
-            gsap.fromTo($(".vl-photo", p), { scale: 1.18, yPercent: -4 }, { scale: 1.02, yPercent: 4, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
-            gsap.fromTo($(".vl-sun", p), { yPercent: -40 }, { yPercent: 80, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
-          }
-
-          if (p.id === "p-stick") {
-            // Compteur de tournage qui defile tant que la maquette est visible.
-            const tc = $(".sp-tc", p);
-            let frames = 0;
-            let timer = null;
-            const pad = (n) => String(n).padStart(2, "0");
-            const tick = () => {
-              frames += 1;
-              const f = frames % 25, sec = Math.floor(frames / 25);
-              tc.textContent = `00:${pad(Math.floor(sec / 60) % 60)}:${pad(sec % 60)}:${pad(f)}`;
-            };
-            tl.from($$(".sp-ring i", p), { scale: 0.3, opacity: 0, stagger: 0.07, duration: 0.8, ease: "back.out(1.8)" }, 0)
-              .from($(".sp-cta", p), { y: 14, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.4);
-            ST.create({
-              trigger: p,
-              start: "top 80%",
-              end: "bottom 20%",
-              onToggle(self) {
-                clearInterval(timer);
-                timer = self.isActive ? setInterval(tick, 40) : null;
-              },
-            });
-            cleanups.push(() => clearInterval(timer));
-          }
-
-          if (p.id === "p-tlem") {
-            // La basket se demonte au scroll : chaque piece part de sa place
-            // dans la chaussure (decalage en % de sa hauteur) et s'ecarte.
-            const assembled = { lacets: 118, languette: 56, semelles: -22 };
-            const names = ["Les lacets", "La languette", "La tige", "Les semelles"];
-            const part = $(".tl-part", p);
-            const num = $(".tl-n", p);
-            let shown = -1;
-            const show = (i) => {
-              if (i === shown) return;
-              shown = i;
-              part.textContent = names[i];
-              num.textContent = `0${i + 1} / 04`;
-            };
-            const apart = gsap.timeline({
-              scrollTrigger: {
-                trigger: p,
-                start: "top 80%",
-                end: "center 45%",
-                scrub: 0.6,
-                onUpdate: (self) => show(Math.min(3, Math.floor(self.progress * 4))),
-                onRefresh: (self) => show(Math.min(3, Math.floor(self.progress * 4))),
-              },
-            });
-            $$(".tl-shoe img", p).forEach((img) => {
-              const y = assembled[img.dataset.part];
-              if (y) apart.fromTo(img, { yPercent: y }, { yPercent: 0, ease: "power1.inOut" }, 0);
-            });
-            apart.fromTo($(".tl-shoe", p), { rotation: -6, scale: 0.9 }, { rotation: 0, scale: 1, ease: "none" }, 0);
-            tl.from($(".tl-ar", p), { y: 16, opacity: 0, duration: 0.8, ease: "power3.out" }, 0)
-              .from($(".tl-step", p), { x: -16, opacity: 0, duration: 0.6, ease: "power3.out" }, 0.3);
-            gsap.fromTo($(".tl-bg", p), { xPercent: 8 }, { xPercent: -10, ease: "none", scrollTrigger: { trigger: p, start: "top bottom", end: "bottom top", scrub: true } });
-            cleanups.push(() => show(3));
-          }
-        });
-
-        /* ---- Portee : chiffres -------------------------------------- */
-        ST.create({
-          trigger: ".stats",
-          start: "top 85%",
-          once: true,
-          onEnter: () => $$(".stats .count").forEach((c, i) => countUp(c, 1.6).delay(i * 0.12)),
-        });
-        gsap.from(".stat", { y: 40, opacity: 0, stagger: 0.1, duration: 1, ease: "power3.out", scrollTrigger: { trigger: ".stats", start: "top 85%", once: true } });
-
-        /* ---- Services : defilement horizontal epingle --------------- */
-        const track = $(".services-track");
-        const pin = $(".services-pin");
-        if (desktop && track && pin) {
-          const dist = () => {
-            const pad = parseFloat(getComputedStyle(pin).paddingLeft) || 0;
-            return Math.max(0, track.scrollWidth - (pin.clientWidth - pad * 2));
-          };
-          // En arabe la piste part de la droite et defile vers la gauche.
-          const sign = isArabic() ? 1 : -1;
-          const horiz = gsap.to(track, {
-            x: () => sign * dist(),
-            ease: "none",
-            scrollTrigger: {
-              trigger: pin,
-              start: "top top",
-              end: () => "+=" + dist(),
-              pin: true,
-              scrub: 1,
-              invalidateOnRefresh: true,
-              anticipatePin: 1,
-            },
-          });
-          $$(".svc", track).forEach((card) => {
-            gsap.from(card, {
-              y: 70,
-              rotation: 3 * -sign,
-              opacity: 0.25,
-              ease: "none",
-              scrollTrigger: isArabic()
-                ? { trigger: card, containerAnimation: horiz, start: "right 0%", end: "right 38%", scrub: true }
-                : { trigger: card, containerAnimation: horiz, start: "left 100%", end: "left 62%", scrub: true },
-            });
-          });
-        } else {
-          $$(".svc").forEach((card) => {
-            gsap.from(card, { y: 60, opacity: 0, duration: 1, ease: "power3.out", scrollTrigger: { trigger: card, start: "top 88%", once: true } });
-          });
-        }
-
-        /* ---- Methode : le rail se remplit, les etapes s'allument ---- */
-        gsap.to(".rail-fill", {
-          scaleY: 1,
-          ease: "none",
-          scrollTrigger: { trigger: ".steps-wrap", start: "top 62%", end: "bottom 62%", scrub: 0.5 },
-        });
-        $$(".step").forEach((s) => {
-          ST.create({
-            trigger: s,
-            start: "top 62%",
-            onEnter: () => s.classList.add("is-on"),
-            onLeaveBack: () => s.classList.remove("is-on"),
-          });
-          gsap.from($(".step-n", s), { x: isArabic() ? 40 : -40, opacity: 0, duration: 1, ease: "expo.out", scrollTrigger: { trigger: s, start: "top 80%", once: true } });
-        });
-        cleanups.push(() => $$(".step").forEach((s) => s.classList.remove("is-on")));
-
-        /* ---- Inclus : grille qui se deplie -------------------------- */
-        gsap.from(".bcard", {
-          y: 70,
-          opacity: 0,
-          scale: 0.95,
-          stagger: { each: 0.08, from: "start" },
-          duration: 1.1,
-          ease: "power3.out",
-          scrollTrigger: { trigger: ".bento", start: "top 80%", once: true },
-        });
-        gsap.from(".bars i", { scaleY: 0, stagger: 0.07, duration: 0.9, ease: "back.out(1.8)", scrollTrigger: { trigger: ".bars", start: "top 88%", once: true } });
-
-        /* ---- Contact / FAQ ------------------------------------------ */
-        gsap.from(".cfg-group, .cfg-inputs", { y: 40, opacity: 0, stagger: 0.1, duration: 1, ease: "power3.out", scrollTrigger: { trigger: ".cfg", start: "top 80%", once: true } });
-        gsap.from(".cfg-summary", { y: 60, opacity: 0, duration: 1.2, ease: "power3.out", scrollTrigger: { trigger: ".cfg", start: "top 75%", once: true } });
-        gsap.from(".qa", { y: 30, opacity: 0, stagger: 0.08, duration: 0.9, ease: "power3.out", scrollTrigger: { trigger: ".faq-list", start: "top 85%", once: true } });
-
-        /* ---- CTA final ---------------------------------------------- */
-        const finalSplit = Split.create(".final-title .ft-line:not(.ft-em-wrap)", { type: "words", mask: "words" });
-        const fin = gsap.timeline({
-          scrollTrigger: { trigger: ".final", start: "top 75%", end: "center 55%", scrub: 1 },
-        });
-        fin.from(finalSplit.words, { yPercent: 110, stagger: 0.08, ease: "none" }, 0)
-          .from(".ft-em", { yPercent: 110, rotation: isArabic() ? -3 : 3, ease: "none" }, 0.2)
-          .from(".btn-round", { scale: 0, rotation: -120, ease: "none" }, 0.35);
-
-        /* ---- Footer : les lettres montent, la sphere nait ------------ */
-        gsap.timeline({ scrollTrigger: { trigger: ".f-logo", start: "top 92%", once: true } })
-          .from(".f-logo .bz-word path", { y: 90, opacity: 0, stagger: 0.07, duration: 1.1, ease: "expo.out" })
-          .from(".f-logo .bz-orb", { scale: 0, rotation: -120, transformOrigin: "50% 50%", duration: 1.4, ease: "elastic.out(1, 0.6)" }, 0.2)
-          .from(".f-logo .bz-studio", { x: -40, opacity: 0, duration: 0.9, ease: "expo.out" }, 0.55);
-
-        // Les declencheurs crees avant l'epinglage des services doivent etre
-        // recalcules apres lui : on les remet dans l'ordre de la page.
-        ST.sort();
-        return () => cleanups.forEach((f) => f());
-      }
-    );
-  }
-
-  /* ========================================================= preloader */
-
-  function runPreloader(ready) {
-    const pre = $(".preloader");
-    const done = () => { if (heroIntro) heroIntro.play(); rotator.start(); };
-    if (!pre) { ready.then(done); return; }
-    if (!gsap || reduce || session.get("seen")) {
-      pre.remove();
-      ready.then(done);
-      return;
+  function orbTarget(mode, vw, vh) {
+    const t = { x: orb.s.x, y: orb.s.y, r: 0, dim: 0, inside: 0, colors: BRAND, back: false };
+    if (mode === "loading") {
+      return Object.assign(t, { x: vw / 2, y: vh * 0.45, r: orb.loaderR });
     }
+    if (mode === "intro") {
+      const hole = centerOf($(".mark-hero .mark-orb"));
+      if (!hole) return t;
+      const g = orb.intro.grow;
+      const im = orb.intro.implode;
+      const e = easeIO(g);
+      const cover = Math.hypot(vw, vh) * 0.6;
+      t.x = lerp(hole.x, vw / 2, e);
+      t.y = lerp(hole.y, vh / 2, e);
+      t.r = lerp(hole.r, cover, g ** 1.7) * (1 - im ** 1.4);
+      t.inside = smooth(0.55, 1, g) * (1 - smooth(0, 0.45, im));
+      t.dim = 0.66 * smooth(0.3, 0.92, g) * (1 - smooth(0, 0.5, im));
+      t.back = true;
+      return t;
+    }
+    if (mode === "works" && worksMeta) {
+      const worlds = worksMeta.worlds;
+      const ph = worksPhase();
+      const a = centerOf($(".w-seed", worlds[ph.from]));
+      const b = centerOf($(".w-seed", worlds[ph.to])) || a;
+      if (!a) return t;
+      t.x = lerp(a.x, b.x, ph.f);
+      t.y = lerp(a.y, b.y, ph.f);
+      t.r = lerp(a.r, b.r, ph.f) * (1 + 0.55 * Math.sin(Math.PI * ph.f));
+      const pa = worksMeta.palettes[ph.from];
+      const pb = worksMeta.palettes[ph.to] || pa;
+      t.colors = { c1: mixRgb(pa.c1, pb.c1, ph.f), c2: mixRgb(pa.c2, pb.c2, ph.f), c3: mixRgb(pa.c3, pb.c3, ph.f), c4: mixRgb(pa.c4, pb.c4, ph.f) };
+      t.active = ph.f > 0.5 ? ph.to : ph.from;
+      return t;
+    }
+    if (mode === "footer") {
+      const hole = $(".mark-foot .mark-orb");
+      const c = centerOf(hole);
+      if (!c) return t;
+      // Le pied de page est revele par le bas : l'orbe n'apparait que si son trou est decouvert.
+      const foot = $("#footer");
+      const curtain = foot.classList.contains("is-curtain");
+      const uncoveredTop = curtain ? vh - (foot.offsetHeight - (ST.maxScroll(window) - window.scrollY)) : 0;
+      const visible = Math.min(smooth(-c.r, c.r * 0.5, c.y - c.r - uncoveredTop), smooth(-c.r, c.r * 0.5, vh - (c.y + c.r)));
+      return Object.assign(t, { x: c.x, y: c.y, r: c.r * visible });
+    }
+    return t;
+  }
+
+  let lastScrollY = 0;
+  let scrollV = 0;
+
+  function orbTick(time, dt) {
+    const vw = innerWidth;
+    const vh = innerHeight;
+    const y = window.scrollY;
+    const step = Math.min(dt, 64) / 16.67;
+    scrollV = lerp(scrollV, (y - lastScrollY) / Math.max(step, 0.2), 0.2);
+    lastScrollY = y;
+
+    const mode = resolveMode(y, vh);
+    if (mode !== orb.mode) { orb.mode = mode; orb.modeAt = time; }
+    const tg = orbTarget(mode, vw, vh);
+    const s = orb.s;
+    // Suivi serre une fois installee, plus souple pendant un changement de section.
+    const settling = time - orb.modeAt < 0.9 || mode === "loading";
+    const k = 1 - Math.pow(1 - (settling ? 0.09 : 0.32), step);
+    s.x = lerp(s.x, tg.x, k);
+    s.y = lerp(s.y, tg.y, k);
+    s.r = lerp(s.r, tg.r, k);
+    if (Math.abs(s.r - tg.r) < 0.05) s.r = tg.r;
+    s.dim = lerp(s.dim, tg.dim, k);
+    s.inside = lerp(s.inside, tg.inside, k);
+    const kc = 1 - Math.pow(0.9, step);
+    ["c1", "c2", "c3", "c4"].forEach((c) => { s[c] = mixRgb(s[c], tg.colors[c], kc); });
+    if (tg.back !== orb.back) { orb.back = tg.back; root.classList.toggle("orb-back", tg.back); }
+
+    // Lumiere : suit la souris, ou tourne doucement sur ecran tactile.
+    const m = orb.mouse;
+    const span = Math.max(s.r * 2.5, Math.min(vw, vh) * 0.5);
+    const lx = m.seen ? clamp((m.x - s.x) / span, -1, 1) : Math.sin(time * 0.4) * 0.6;
+    const ly = m.seen ? clamp((m.y - s.y) / span, -1, 1) : Math.cos(time * 0.33) * 0.4;
+    const kl = 1 - Math.pow(0.94, step);
+    s.lx = lerp(s.lx, lx, kl);
+    s.ly = lerp(s.ly, ly, kl);
+    m.speed *= Math.pow(0.9, step);
+    s.energy = lerp(s.energy, clamp(m.speed / 1800 + Math.abs(scrollV) / 60, 0, 1), 1 - Math.pow(0.93, step));
+    orb.flow += (dt / 1000) * (1 + s.energy * 3);
+
+    if (orb.gl) {
+      orb.gl.render(s, orb.flow);
+      // Si l'orbe pleine page fait tomber sous ~40 images/s, on allege.
+      if (s.r > 2) {
+        orb.slow = lerp(orb.slow, dt, 0.05);
+        orb.frames++;
+        if (orb.frames > 90 && orb.slow > 26 && orb.gl.degrade()) { orb.frames = 0; orb.slow = 16; }
+      }
+    }
+
+    if (mode === "works" && tg.active != null && worksMeta) {
+      const p = worksMeta.projects[tg.active];
+      if (p) setTheme({ bg: p.bg, fg: inkOn(p.bg), accent: p.accent, accent2: p.accent2 });
+    } else if (mode !== "loading") {
+      setTheme(DEFAULT_THEME);
+    }
+  }
+
+  function initOrb() {
+    if (!motion || !OrbLib) { root.classList.add("no-gl"); return; }
+    orb.gl = OrbLib.create($(".orb-gl"));
+    if (!orb.gl) { root.classList.add("no-gl"); return; }
+    root.classList.add("gl");
+    addEventListener("resize", () => orb.gl.resize());
+    addEventListener("pointermove", (e) => {
+      const m = orb.mouse;
+      const d = Math.hypot(e.clientX - m.x, e.clientY - m.y);
+      m.speed = Math.max(m.speed, d * 30);
+      m.x = e.clientX;
+      m.y = e.clientY;
+      m.seen = e.pointerType === "mouse";
+    }, { passive: true });
+  }
+
+  /* ================================================= bandeau, nav, pied */
+
+  function initTicker() {
+    const nav = $(".nav");
+    const band = $(".band-track");
+    const group = $(".band-group");
+    const foot = $("#footer");
+    let bandX = 0;
+    let bandDir = 1;
+    let groupW = 0;
+    const fillBand = () => {
+      if (!band || !group) return;
+      $$(".band-group", band).slice(1).forEach((g) => g.remove());
+      groupW = group.offsetWidth;
+      const copies = Math.max(2, Math.ceil((innerWidth * 2) / Math.max(groupW, 1)));
+      for (let i = 1; i < copies; i++) {
+        const c = group.cloneNode(true);
+        c.setAttribute("aria-hidden", "true");
+        c.removeAttribute("data-i18n");
+        band.append(c);
+      }
+    };
+    fillBand();
+    addEventListener("resize", fillBand);
+    document.addEventListener("bz:lang", fillBand);
+
+    let lastY = window.scrollY;
+    gsap.ticker.add((time, dt) => {
+      const y = window.scrollY;
+      const dy = y - lastY;
+      lastY = y;
+      // Navigation : cachee en descendant, revient des qu'on remonte.
+      if (!menuOpen) {
+        if (y > 160 && dy > 2) nav.classList.add("is-hidden");
+        else if (dy < -2 || y < 160) nav.classList.remove("is-hidden");
+      }
+      nav.classList.toggle("is-scrolled", y > 40);
+      // Bandeau : avance tout seul, accelere et penche avec le scroll.
+      if (band && groupW && !reduce) {
+        if (Math.abs(dy) > 0.5) bandDir = dy > 0 ? 1 : -1;
+        const speed = 70 + Math.min(Math.abs(scrollV) * 22, 1400);
+        bandX -= (speed * bandDir * Math.min(dt, 64)) / 1000;
+        if (bandX <= -groupW) bandX += groupW;
+        if (bandX > 0) bandX -= groupW;
+        band.style.transform = `translate3d(${bandX}px,0,0) skewX(${clamp(-scrollV * 0.5, -10, 10)}deg)`;
+      }
+      // Pied de page en rideau : visible seulement quand on approche du bas.
+      if (foot.classList.contains("is-curtain")) {
+        const near = y > ST.maxScroll(window) - foot.offsetHeight - innerHeight * 0.5;
+        foot.style.visibility = near ? "visible" : "hidden";
+      }
+    });
+  }
+
+  function layoutFooter() {
+    const foot = $("#footer");
+    const main = $("#main");
+    foot.classList.remove("is-curtain");
+    foot.style.visibility = "";
+    main.style.marginBottom = "";
+    if (!motion) return;
+    const hgt = foot.offsetHeight;
+    if (hgt <= innerHeight) {
+      foot.classList.add("is-curtain");
+      main.style.marginBottom = hgt + "px";
+    }
+  }
+
+  /* ========================================================= intro (hero) */
+
+  let mmIntro = null;
+  let mmRest = null;
+  let introPlayed = false;
+
+  function playIntro() {
+    root.classList.remove("intro-pending");
+    if (introPlayed || !motion) { rotator.start(); return; }
+    introPlayed = true;
+    const tl = gsap.timeline({ onComplete: () => rotator.start() });
+    tl.from(".hero .ht-in", { yPercent: 110, duration: 1.2, stagger: 0.1, ease: "expo.out" }, 0)
+      .from(".mark-hero .mk", { yPercent: 70, opacity: 0, duration: 1.3, stagger: 0.07, ease: "expo.out" }, 0.08)
+      .from(".hero-meta > *, .hero-side > *, .hero-foot > *", { y: 18, opacity: 0, duration: 0.9, stagger: 0.05, ease: "power3.out" }, 0.3);
+  }
+
+  function buildIntro() {
+    mmIntro = gsap.matchMedia();
+    mmIntro.add("(prefers-reduced-motion: no-preference)", () => {
+      const man = $(".manifesto");
+      const split = new Split($(".man-text"), { type: "words", wordsClass: "mw" });
+      const marks = (c) => $(".mark-hero .mk-" + c);
+      const tl = gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: {
+          trigger: ".intro",
+          start: "top top",
+          end: () => "+=" + Math.round(innerHeight * 2.3),
+          pin: ".intro-pin",
+          scrub: 0.8,
+          invalidateOnRefresh: true,
+        },
+      });
+      introST = tl.scrollTrigger;
+      orb.intro.grow = 0;
+      orb.intro.implode = 0;
+      tl.to(orb.intro, { grow: 1, duration: 1 }, 0)
+        .to(marks("b"), { xPercent: -170, yPercent: -90, rotation: -32, opacity: 0, duration: 0.75, ease: "power2.in" }, 0.06)
+        .to(marks("r"), { xPercent: 120, yPercent: -230, rotation: 38, opacity: 0, duration: 0.75, ease: "power2.in" }, 0.1)
+        .to(marks("n"), { xPercent: 150, yPercent: 160, rotation: -26, opacity: 0, duration: 0.75, ease: "power2.in" }, 0.12)
+        .to(marks("z"), { xPercent: 240, yPercent: -40, rotation: 44, opacity: 0, duration: 0.75, ease: "power2.in" }, 0.04)
+        .to(".hero-copy", { yPercent: -18, opacity: 0, duration: 0.45, ease: "power2.in" }, 0)
+        .to(".hero-meta, .hero-foot", { opacity: 0, duration: 0.25 }, 0)
+        .set(man, { visibility: "visible" }, 0.72)
+        .fromTo(man.querySelector(".eyebrow"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.25, ease: "power2.out" }, 0.76)
+        .fromTo(split.words, { opacity: 0.1 }, { opacity: 1, duration: 0.18, stagger: 0.035 }, 0.86)
+        .to({}, { duration: 0.3 });
+      // A la sortie, la suite de la page monte par-dessus et l'orbe se referme.
+      const out = gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: { trigger: ".band", start: "top bottom", end: "top 15%", scrub: 0.6 },
+      });
+      introOutST = out.scrollTrigger;
+      out.to(orb.intro, { implode: 1, duration: 1, ease: "power1.in" }, 0)
+        .to(man, { opacity: 0, duration: 0.6 }, 0);
+      return () => { introST = null; introOutST = null; };
+    });
+  }
+
+  /* ===================================================== reste de la page */
+
+  function splitTitle(el) {
+    // L'arabe se decoupe en mots (les lettres sont liees), le latin en lettres.
+    const arabic = hasArabic(el.textContent);
+    const sp = new Split(el, { type: arabic ? "lines,words" : "lines,words,chars", mask: "lines", linesClass: "split-mask" });
+    return arabic ? sp.words : sp.chars;
+  }
+
+  function buildWorks(isDesktop) {
+    const stage = $("#stage");
+    const worlds = $$(".world", stage);
+    const n = worlds.length;
+    worksMeta = null;
+    if (!n) return;
+    const featured = projects.slice(0, n);
+    const titles = worlds.map((w) => splitTitle($(".w-title", w)));
+    const L = 1.3;
+    const hold = 0.25;
+
+    // Centre de l'iris = l'orbe du projet suivant (positions de mise en page, sans transformations).
+    const setIris = () => {
+      const W = stage.offsetWidth;
+      const H = stage.offsetHeight;
+      worlds.forEach((w) => {
+        const v = $(".w-visual", w);
+        const sd = $(".w-seed", w);
+        const sx = v.offsetLeft + sd.offsetLeft + sd.offsetWidth / 2;
+        const sy = v.offsetTop + sd.offsetTop + sd.offsetHeight / 2;
+        const far = Math.max(Math.hypot(sx, sy), Math.hypot(W - sx, sy), Math.hypot(sx, H - sy), Math.hypot(W - sx, H - sy));
+        w.style.setProperty("--sx", sx + "px");
+        w.style.setProperty("--sy", sy + "px");
+        w.style.setProperty("--iris-max", Math.ceil(far + 4) + "px");
+      });
+    };
+    setIris();
+
+    const tl = gsap.timeline({
+      defaults: { ease: "none" },
+      scrollTrigger: {
+        trigger: stage,
+        start: "top top",
+        end: () => "+=" + Math.round(innerHeight * Math.max(n - 1, 0.6) * (isDesktop ? 1.15 : 1)),
+        pin: true,
+        scrub: 0.7,
+        invalidateOnRefresh: true,
+        onRefresh: setIris,
+      },
+    });
+    worksST = tl.scrollTrigger;
+    tl.to({}, { duration: hold });
+    for (let i = 1; i < n; i++) {
+      const w = worlds[i];
+      const prev = worlds[i - 1];
+      const at = hold + (i - 1) * L;
+      tl.fromTo(w, { "--iris": 0 }, { "--iris": 1, duration: 1, ease: "power2.inOut" }, at)
+        .to([$(".w-text", prev), $(".w-visual", prev)], { scale: 0.93, opacity: 0.2, duration: 1, ease: "power2.in" }, at)
+        .from(titles[i], { yPercent: 118, duration: 0.42, stagger: 0.016, ease: "power3.out" }, at + 0.42)
+        .from($$(".w-cat, .w-sum, .w-tags, .w-cta", w), { y: 26, opacity: 0, duration: 0.4, stagger: 0.05, ease: "power2.out" }, at + 0.5)
+        .from($(".w-shot img", w) || {}, { scale: 1.22, duration: 1.1, ease: "power2.out" }, at + 0.15)
+        .from($(".w-phone", w) || {}, { yPercent: 24, duration: 0.9, ease: "power2.out" }, at + 0.3);
+    }
+    tl.to({}, { duration: 0.35 });
+    worksTL = tl;
+    worksMeta = { n, L, hold, worlds, projects: featured, palettes: featured.map(paletteOf) };
+
+    // Premier projet : il se construit quand la scene arrive.
+    const w0 = worlds[0];
+    gsap.timeline({ scrollTrigger: { trigger: stage, start: "top 75%", toggleActions: "play none none reverse" } })
+      .from(titles[0], { yPercent: 118, duration: 1, stagger: 0.025, ease: "expo.out" }, 0)
+      .from($$(".w-cat, .w-sum, .w-tags, .w-cta", w0), { y: 30, opacity: 0, duration: 0.8, stagger: 0.06, ease: "power3.out" }, 0.15)
+      .from($(".w-shot img", w0) || {}, { scale: 1.2, duration: 1.4, ease: "expo.out" }, 0)
+      .from($(".w-phone", w0) || {}, { yPercent: 20, opacity: 0, duration: 1.1, ease: "expo.out" }, 0.1);
+  }
+
+  function buildRest() {
+    mmRest = gsap.matchMedia();
+    mmRest.add({ desktop: "(min-width: 861px)", mobile: "(max-width: 860px)", motion: "(prefers-reduced-motion: no-preference)" }, (ctx) => {
+      const { desktop, motion: ok } = ctx.conditions;
+      if (!ok) return undefined;
+
+      buildWorks(desktop);
+
+      // Titres de section : les lignes montent derriere un masque.
+      $$("[data-split]").forEach((el) => {
+        const sp = new Split(el, { type: "lines", mask: "lines", linesClass: "split-mask" });
+        gsap.from(sp.lines, { yPercent: 105, duration: 1.1, stagger: 0.08, ease: "expo.out", scrollTrigger: { trigger: el, start: "top 86%" } });
+      });
+      $$(".sec-head .eyebrow, .sec-lead").forEach((el) => {
+        gsap.from(el, { y: 24, opacity: 0, duration: 0.9, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 90%" } });
+      });
+
+      // Index
+      gsap.from(".index-title, .filters", { y: 30, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out", scrollTrigger: { trigger: ".index", start: "top 80%" } });
+      ST.batch("#rows .row", {
+        start: "top 92%",
+        once: true,
+        onEnter: (els) => gsap.from(els, { y: 40, opacity: 0, duration: 0.8, stagger: 0.06, ease: "power3.out" }),
+      });
+
+      // Services : le nom se remplit de gauche a droite en passant au centre.
+      $$(".svc").forEach((li) => {
+        gsap.fromTo($(".svc-name", li), { "--fill": "0%" }, {
+          "--fill": "100%",
+          ease: "none",
+          scrollTrigger: { trigger: li, start: "top 82%", end: "top 42%", scrub: 0.4 },
+        });
+      });
+
+      // Methode
+      const steps = $(".steps");
+      const stepEls = $$(".step", steps);
+      if (desktop) {
+        const dist = () => Math.max(0, steps.offsetWidth - innerWidth);
+        const dir = lang === "ar" ? 1 : -1;
+        gsap.timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: ".process",
+            start: "top top",
+            end: () => "+=" + Math.max(dist(), innerHeight * 0.6),
+            pin: ".proc-pin",
+            scrub: 0.7,
+            invalidateOnRefresh: true,
+            onUpdate: () => {
+              const edge = innerWidth * (lang === "ar" ? 0.35 : 0.65);
+              stepEls.forEach((s) => {
+                const r = s.getBoundingClientRect();
+                s.classList.toggle("is-on", lang === "ar" ? r.right > edge : r.left < edge);
+              });
+            },
+          },
+        })
+          .to({}, { duration: 0.08 })
+          .to(steps, { x: () => dir * dist(), duration: 1 }, 0.08)
+          .to(".proc-fill", { scaleX: 1, duration: 1 }, 0.08);
+      } else {
+        gsap.fromTo(".proc-fill", { scaleY: 0 }, { scaleY: 1, ease: "none", scrollTrigger: { trigger: steps, start: "top 70%", end: "bottom 60%", scrub: 0.5 } });
+        stepEls.forEach((s) => ST.create({ trigger: s, start: "top 70%", onToggle: (self) => s.classList.toggle("is-on", self.isActive || self.progress > 0), end: "max" }));
+      }
+      gsap.from(stepEls, { y: 40, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out", scrollTrigger: { trigger: steps, start: "top 85%" } });
+
+      // Contact et questions
+      gsap.from(".cfg-group, .cfg-inputs", { y: 36, opacity: 0, duration: 0.9, stagger: 0.08, ease: "power3.out", scrollTrigger: { trigger: ".cfg", start: "top 80%" } });
+      gsap.from(".cfg-card", { y: 50, opacity: 0, duration: 1.1, ease: "expo.out", scrollTrigger: { trigger: ".cfg", start: "top 75%" } });
+      gsap.from(".qa", { y: 24, opacity: 0, duration: 0.8, stagger: 0.06, ease: "power3.out", scrollTrigger: { trigger: ".faq-list", start: "top 85%" } });
+
+      // Pied de page : le nom geant remonte quand le rideau s'ouvre.
+      gsap.from(".mark-foot .mk", {
+        yPercent: 60,
+        opacity: 0,
+        stagger: 0.05,
+        ease: "none",
+        scrollTrigger: { trigger: "#main", start: "bottom bottom", end: () => "bottom " + Math.max(innerHeight - $("#footer").offsetHeight * 0.9, 0), scrub: 0.6 },
+      });
+      return () => { worksST = null; worksTL = null; worksMeta = null; };
+    });
+  }
+
+  /* ========================================================== chargement */
+
+  function runLoader(ready) {
+    const el = $(".loader");
+    const finish = () => {
+      root.classList.remove("is-loading");
+      if (el) el.remove();
+      if (lenis) lenis.start();
+    };
+    if (!motion || !el) { if (el) el.remove(); ready.then(playIntro); return; }
+    if (session.get("seen")) { finish(); ready.then(playIntro); return; }
     session.set("seen", "1");
-    pre.style.animation = "none";
-    const num = $(".pre-num", pre);
-    // La sphere du logo grandit au rythme du compteur.
-    const orb = $(".bz-orb", pre);
-    if (orb) gsap.set(orb, { scale: 0, transformOrigin: "50% 50%" });
+    root.classList.add("is-loading");
+    if (lenis) lenis.stop();
+    const num = $(".loader-num", el);
     const o = { v: 0 };
+    const target = () => Math.min(innerWidth, innerHeight) * (innerWidth < 700 ? 0.17 : 0.12);
     gsap.timeline()
-      .from(".pre-name .bz-word path", { yPercent: 40, opacity: 0, stagger: 0.06, duration: 0.8, ease: "expo.out" })
-      .from(".pre-name .bz-studio", { opacity: 0, duration: 0.6 }, 0.3)
+      .from(".loader-tag span", { y: 16, opacity: 0, duration: 0.8, stagger: 0.1, ease: "power3.out" }, 0)
       .to(o, {
         v: 100,
-        duration: 1.1,
+        duration: 1.9,
         ease: "power2.inOut",
         onUpdate: () => {
-          num.textContent = Math.round(o.v);
-          if (orb) gsap.set(orb, { scale: o.v / 100, rotation: (o.v / 100 - 1) * 90 });
+          num.textContent = String(Math.round(o.v)).padStart(3, "0");
+          orb.loaderR = target() * (o.v / 100);
         },
       }, 0)
       .add(() => {
         ready.then(() => {
-          gsap.timeline({ onComplete: () => pre.remove() })
-            .to(".pre-inner, .pre-tag", { y: -40, opacity: 0, duration: 0.5, ease: "power3.in" })
-            .to(pre, { clipPath: "inset(0 0 100% 0)", duration: 0.9, ease: "expo.inOut" }, 0.25)
-            .add(done, 0.6);
+          gsap.timeline()
+            .to(".loader-count, .loader-tag", { yPercent: 30, opacity: 0, duration: 0.5, ease: "power3.in" }, 0)
+            .to(el, { opacity: 0, duration: 0.9, ease: "power2.inOut" }, 0.3)
+            .add(() => { root.classList.remove("is-loading"); }, 0.35)
+            .add(playIntro, 0.4)
+            .add(finish, 1.25);
         });
       });
   }
 
   /* =============================================================== boot */
 
-  function boot() {
+  function onHash() {
+    const id = location.hash;
+    if (!id || id === "#top") return;
+    const target = $(id);
+    if (target) setTimeout(() => goTo(target), 300);
+  }
+
+  async function boot() {
     const year = $(".year");
     if (year) year.textContent = String(new Date().getFullYear());
     fillContacts();
-    initConfigurator();
-
-    const saved = store.get("lang");
-    applyLang(saved || "fr");
+    initForm();
+    applyLang(store.get("lang") || "fr");
     initTracking();
     setInterval(updateClock, 30000);
+    $$(".lang button").forEach((b) => b.addEventListener("click", () => switchLang(b.dataset.lang)));
 
-    $$(".lang button").forEach((b) => {
-      b.addEventListener("click", () => switchLang(b.dataset.lang));
-    });
+    const data = loadProjects();
 
-    if (!gsap || !window.ScrollTrigger || !window.SplitText) {
-      const pre = $(".preloader");
-      if (pre) pre.remove();
-      if (map) { map.resize(); map.setProgress(1); }
+    if (!motion) {
+      const l = $(".loader");
+      if (l) l.remove();
+      await data;
+      renderWorks();
       return;
     }
 
-    gsap.registerPlugin(window.ScrollTrigger, window.SplitText);
+    gsap.registerPlugin(ST, Split);
+    ST.config({ ignoreMobileResize: true });
     initScroll();
+    initOrb();
     initCursor();
     initMagnetic();
-    initPointerFx();
+    initPeek();
+    initTicker();
+    gsap.ticker.add(orbTick);
+    ST.addEventListener("refreshInit", layoutFooter);
 
-    const fontsReady = Promise.race([
+    const fonts = Promise.race([
       document.fonts ? document.fonts.ready : Promise.resolve(),
-      new Promise((r) => setTimeout(r, 1500)),
+      new Promise((r) => setTimeout(r, 1800)),
     ]);
-    const ready = fontsReady.then(() => {
-      build(true);
-      window.ScrollTrigger.refresh();
-    });
-    runPreloader(ready);
+    const fail = (e) => { if (window.console) console.error(e); };
+    const introReady = fonts.then(() => { layoutFooter(); buildIntro(); ST.refresh(); }).catch(fail);
+    const allReady = Promise.all([introReady, data]).then(() => {
+      renderWorks();
+      buildRest();
+      ST.refresh();
+      onHash();
+    }).catch(fail);
+    // Le rideau ne reste jamais bloque : 7 secondes au plus.
+    runLoader(Promise.race([Promise.all([introReady, allReady]), new Promise((r) => setTimeout(r, 7000))]));
   }
 
   function switchLang(next) {
     if (next === lang) return;
     store.set("lang", next);
     track("lang", next);
-    if (!gsap || !mm) { applyLang(next); return; }
-    const scroller = $("main");
-    gsap.to([scroller, ".footer"], {
+    if (!motion || !mmIntro) { applyLang(next); renderWorks(); return; }
+    const page = $(".page");
+    const y = window.scrollY;
+    gsap.to(page, {
       opacity: 0,
       duration: 0.25,
       onComplete: () => {
-        mm.revert();
-        currentTheme = null;
+        if (mmRest) mmRest.revert();
+        mmIntro.revert();
+        themeKey = "";
         applyLang(next);
-        build(false);
-        window.ScrollTrigger.refresh();
-        gsap.to([scroller, ".footer"], { opacity: 1, duration: 0.45, clearProps: "opacity" });
+        document.dispatchEvent(new Event("bz:lang"));
+        renderWorks();
+        buildIntro();
+        buildRest();
+        ST.refresh();
+        if (lenis) lenis.scrollTo(y, { immediate: true });
+        else window.scrollTo(0, y);
+        gsap.to(page, { opacity: 1, duration: 0.45, clearProps: "opacity" });
       },
     });
   }
