@@ -1,0 +1,284 @@
+[
+ {
+  "id": 1,
+  "title": "Hooked Lab",
+  "kind": "app",
+  "url": "https://hooked-lab.com/",
+  "year": 2026,
+  "cat": {
+   "ar": "برمجية ذكاء اصطناعي",
+   "en": "AI SaaS",
+   "fr": "SaaS IA"
+  },
+  "summary": {
+   "ar": "الصق رابط إعلان من تيك توك أو إنستغرام أو فيسبوك: يعيد الذكاء الاصطناعي بناء السكريبت، يقيّم الـ Hook، يجد المورّد على 1688، يحسب الهامش لكل سوق ويكتب نصوص Meta. تقرير كامل في ثلاث دقائق.",
+   "en": "Paste a TikTok, Instagram or Facebook ad link: the AI rebuilds the script, scores the hook, finds the 1688 supplier, works out the margin per market and writes the Meta copy. A full report in three minutes.",
+   "fr": "Collez le lien d'une pub TikTok, Instagram ou Facebook : l'IA reconstitue le script, note le hook, trouve le fournisseur sur 1688, calcule la marge par marché et rédige les textes Meta. Un rapport complet en trois minutes."
+  },
+  "tags": {
+   "ar": [
+    "ذكاء Claude",
+    "تحليل الفيديو",
+    "توريد 1688",
+    "اشتراكات"
+   ],
+   "en": [
+    "Claude AI",
+    "Video analysis",
+    "1688 sourcing",
+    "Subscriptions"
+   ],
+   "fr": [
+    "IA Claude",
+    "Analyse vidéo",
+    "Sourcing 1688",
+    "Abonnements"
+   ]
+  },
+  "bg": "#07060a",
+  "accent": "#e0be55",
+  "accent2": "#b87333",
+  "cover": "assets/img/projects/hooked-lab.webp",
+  "cover_m": "assets/img/projects/hooked-lab-m.webp"
+ },
+ {
+  "id": 2,
+  "title": "Hooked Academy",
+  "kind": "site",
+  "url": "https://hooked-academy.tech/",
+  "year": 2026,
+  "cat": {
+   "ar": "أكاديمية على الإنترنت",
+   "en": "Online academy",
+   "fr": "Formation en ligne"
+  },
+  "summary": {
+   "ar": "مدرسة على الإنترنت لتعلّم صناعة إعلانات تبيع: دروس متحركة من دقيقتين بالدارجة، اختبارات، فضاء للطالب مع نقاط وشارات، ورشة ذكاء اصطناعي وشهادة في النهاية.",
+   "en": "An online school to learn how to make ads that sell: two-minute animated lessons in darija, quizzes, a student area with XP and badges, an AI workshop and a final certificate.",
+   "fr": "Une école en ligne pour apprendre à monter des pubs qui vendent : leçons animées de deux minutes en darija, quiz, espace étudiant avec XP et badges, atelier IA et certificat de fin de formation."
+  },
+  "tags": {
+   "ar": [
+    "دروس فيديو",
+    "فضاء الطالب",
+    "نقاط وشارات",
+    "FR · AR · EN"
+   ],
+   "en": [
+    "Video lessons",
+    "Student area",
+    "XP & badges",
+    "FR · AR · EN"
+   ],
+   "fr": [
+    "Leçons vidéo",
+    "Espace étudiant",
+    "XP & badges",
+    "FR · AR · EN"
+   ]
+  },
+  "bg": "#0b0a0a",
+  "accent": "#ff3d17",
+  "accent2": "#ff8a3d",
+  "cover": "assets/img/projects/hooked-academy.webp",
+  "cover_m": "assets/img/projects/hooked-academy-m.webp"
+ },
+ {
+  "id": 3,
+  "title": "The Algerian Exporter",
+  "kind": "site",
+  "url": "https://thealgerianexporter.com/",
+  "year": 2025,
+  "cat": {
+   "ar": "منصة استيراد B2B",
+   "en": "B2B sourcing platform",
+   "fr": "Plateforme d'import B2B"
+  },
+  "summary": {
+   "ar": "اشتراك المشترين الأجانب للاستيراد من المصدر: كتالوج منتجين موثّقين، طلبات توريد، تقديرات الشحن، ومرافقة حتى وثائق التصدير.",
+   "en": "The subscription for foreign buyers who import at the source: a catalogue of verified producers, sourcing requests, freight estimates and support all the way to the export paperwork.",
+   "fr": "L'abonnement des acheteurs étrangers pour importer à la source : un catalogue de producteurs vérifiés, des demandes de sourcing, des estimations de fret et un accompagnement jusqu'aux papiers d'export."
+  },
+  "tags": {
+   "ar": [
+    "1579 بطاقة منتج",
+    "التوريد",
+    "اشتراكات",
+    "FR · EN"
+   ],
+   "en": [
+    "1,579 product sheets",
+    "Sourcing",
+    "Subscriptions",
+    "FR · EN"
+   ],
+   "fr": [
+    "1 579 fiches produits",
+    "Sourcing",
+    "Abonnements",
+    "FR · EN"
+   ]
+  },
+  "bg": "#0c2219",
+  "accent": "#e8b84a",
+  "accent2": "#2f8a5f",
+  "cover": "assets/img/projects/exporter.webp",
+  "cover_m": "assets/img/projects/exporter-m.webp"
+ },
+ {
+  "id": 4,
+  "title": "Swiftly DZ",
+  "kind": "app",
+  "url": "https://swiftlydz.com/",
+  "year": 2025,
+  "cat": {
+   "ar": "منصة ذكاء اصطناعي",
+   "en": "AI platform",
+   "fr": "Plateforme IA"
+  },
+  "summary": {
+   "ar": "كل الذكاء الاصطناعي بتسجيل دخول واحد: GPT وClaude وGemini وDeepSeek وGrok وFLUX في واجهة موحّدة، مع الدردشة واستوديو الصور وفضاء المطوّرين ووكيل البحث.",
+   "en": "All of AI in one login: GPT, Claude, Gemini, DeepSeek, Grok and FLUX in a single interface, with chat, an image studio, a developer space and a research agent.",
+   "fr": "Toute l'IA en une seule connexion : GPT, Claude, Gemini, DeepSeek, Grok et FLUX dans une interface unifiée, avec chat, studio d'images, espace développeur et agent de recherche."
+  },
+  "tags": {
+   "ar": [
+    "+6 نماذج",
+    "استوديو الصور",
+    "اشتراكات"
+   ],
+   "en": [
+    "6+ AI models",
+    "Image studio",
+    "Subscriptions"
+   ],
+   "fr": [
+    "6+ modèles IA",
+    "Studio image",
+    "Abonnements"
+   ]
+  },
+  "bg": "#0d0a22",
+  "accent": "#9b6bff",
+  "accent2": "#2fd3e6",
+  "cover": "assets/img/projects/swiftly.webp",
+  "cover_m": "assets/img/projects/swiftly-m.webp"
+ },
+ {
+  "id": 5,
+  "title": "Tlemceni",
+  "kind": "demo",
+  "url": "https://demos.bornzstudio.com/tlemceni/",
+  "year": 2026,
+  "cat": {
+   "ar": "عرض تجريبي · أحذية وأزياء",
+   "en": "Demo · Footwear & fashion",
+   "fr": "Démo · Chaussures & mode"
+  },
+  "summary": {
+   "ar": "موقع علامة أحذية وقمصان تقليدية وعطور: مع التمرير، يتفكك حذاؤها ثلاثي الأبعاد قطعةً قطعة، من الرباط إلى النعل.",
+   "en": "A footwear, qamis and fragrance brand: as you scroll, its 3D sneaker comes apart piece by piece, from the laces to the sole.",
+   "fr": "Le site d'une marque de chaussures, de qamis et de parfums : au scroll, sa basket en 3D se démonte pièce par pièce, du lacet à la semelle."
+  },
+  "tags": {
+   "ar": [
+    "حذاء ثلاثي الأبعاد",
+    "تفكيك بالتمرير",
+    "دليل المقاسات"
+   ],
+   "en": [
+    "3D sneaker",
+    "Scroll teardown",
+    "Size guide"
+   ],
+   "fr": [
+    "Basket 3D",
+    "Démontage au scroll",
+    "Guide des pointures"
+   ]
+  },
+  "bg": "#0d0809",
+  "accent": "#ef3b46",
+  "accent2": "#d8b56a",
+  "cover": "assets/img/projects/tlemceni.webp",
+  "cover_m": "assets/img/projects/tlemceni-m.webp"
+ },
+ {
+  "id": 6,
+  "title": "Villa Lumen",
+  "kind": "demo",
+  "url": "https://demos.bornzstudio.com/villa-lumen-dubai/",
+  "year": 2026,
+  "cat": {
+   "ar": "عرض تجريبي · عقارات فاخرة",
+   "en": "Demo · Luxury real estate",
+   "fr": "Démo · Immobilier de prestige"
+  },
+  "summary": {
+   "ar": "فيلا تُزار بالتمرير: نحلّق فوق الساحل، نفتح الباب، ثم تنفتح كل غرفة مع مخططها المتحرك.",
+   "en": "A villa toured by scrolling: fly over the coast, open the door, then every room unfolds with its animated floor plan.",
+   "fr": "Une villa qu'on visite en faisant défiler : on survole la côte, on pousse la porte, puis chaque pièce s'ouvre avec son plan animé."
+  },
+  "tags": {
+   "ar": [
+    "زيارة بالتمرير",
+    "مخططات متحركة",
+    "زيارة عبر الفيديو"
+   ],
+   "en": [
+    "Scroll tour",
+    "Animated plans",
+    "Video tours"
+   ],
+   "fr": [
+    "Visite au scroll",
+    "Plans animés",
+    "Visite en visio"
+   ]
+  },
+  "bg": "#0e0c0a",
+  "accent": "#d9b77c",
+  "accent2": "#3d8e9d",
+  "cover": "assets/img/projects/villa.webp",
+  "cover_m": "assets/img/projects/villa-m.webp"
+ },
+ {
+  "id": 7,
+  "title": "Stickprod",
+  "kind": "demo",
+  "url": "https://demos.bornzstudio.com/stickprod/",
+  "year": 2026,
+  "cat": {
+   "ar": "عرض تجريبي · إنتاج سمعي بصري",
+   "en": "Demo · Video production",
+   "fr": "Démo · Production audiovisuelle"
+  },
+  "summary": {
+   "ar": "موقع استوديو إنتاج فيديو: الأعمال تدور في حلزون ثلاثي الأبعاد، وكل فيلم يعرض الموجز والمقاربة وما تم تسليمه.",
+   "en": "A video production studio: the work spins in a 3D spiral, and each film shows the brief, the approach and what was delivered.",
+   "fr": "Le site d'un studio de production vidéo : les réalisations tournent en spirale 3D et chaque film détaille le brief, l'approche et ce qui a été livré."
+  },
+  "tags": {
+   "ar": [
+    "حلزون WebGL",
+    "بطاقات المشاريع",
+    "فضاء الإدارة"
+   ],
+   "en": [
+    "WebGL spiral",
+    "Project sheets",
+    "Admin area"
+   ],
+   "fr": [
+    "Spirale WebGL",
+    "Fiches projets",
+    "Espace admin"
+   ]
+  },
+  "bg": "#0b0b0c",
+  "accent": "#ff4a1c",
+  "accent2": "#ffb38a",
+  "cover": "assets/img/projects/stickprod.webp",
+  "cover_m": "assets/img/projects/stickprod-m.webp"
+ }
+]
