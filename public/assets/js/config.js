@@ -17,6 +17,13 @@ window.SITE_CONFIG = {
   whatsapp: "213558678038",
   email: "youcef.ny@gmail.com",
   instagram: "",
-  api: "/api",
+  // Base Supabase : formulaire, statistiques et espace admin.
+  // La cle "publishable" est faite pour etre publique : la base n'accepte du
+  // site que deux fonctions (enregistrer un message, compter une visite).
+  supabase: {
+    url: "https://jamhieikgggcrrrxafab.supabase.co",
+    key: "sb_publishable_hXw61UrO2OjHjlaOHxI-VA_vb6u-pmn",
+  },
+  adminEmail: "youcef.ny@gmail.com",
   analytics: true,
 };

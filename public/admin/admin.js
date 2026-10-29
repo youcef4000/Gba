@@ -1,6 +1,6 @@
 /* ============================================================================
    Espace admin : connexion, boite de reception, statistiques.
-   Toutes les donnees viennent de /api/admin/* (session par cookie HttpOnly).
+   Connexion par Supabase Auth, donnees par les fonctions admin_* de la base.
    Les textes saisis par les visiteurs sont inseres avec textContent.
    ========================================================================== */
 (() => {
@@ -28,8 +28,8 @@
   };
   const LOGIN_ERR = {
     wrong_password: "Mot de passe incorrect.",
-    locked: "Trop d'essais. Réessayez dans 15 minutes.",
-    not_configured: "L'espace admin n'est pas encore configuré : ajoutez la base D1 (liaison DB) et la variable ADMIN_PASSWORD dans Cloudflare, puis redéployez.",
+    locked: "Trop d'essais. Réessayez dans quelques minutes.",
+    not_configured: "L'espace admin n'est pas encore relié à la base Supabase (clé manquante dans config.js).",
     server: "Connexion impossible pour le moment. Réessayez.",
   };
 
@@ -56,21 +56,92 @@
     return el;
   }
 
-  async function api(path, opts = {}) {
-    const res = await fetch("/api/admin/" + path, {
-      credentials: "same-origin",
-      ...opts,
-      headers: { "content-type": "application/json", ...(opts.headers || {}) },
+  /* ------------------------------------------------- base Supabase */
+
+  // La connexion passe par Supabase Auth (e-mail de config.js + mot de passe) ;
+  // les donnees par les fonctions admin_* de la base, refusees a tout autre compte.
+  const CFG = window.SITE_CONFIG || {};
+  const SB = CFG.supabase || {};
+  const SB_URL = (SB.url || "").replace(/\/$/, "");
+  const SB_OK = !!(SB_URL && SB.key && !/^SUPABASE_/.test(SB.key) && CFG.adminEmail);
+  const STORE = "bz-admin-session";
+  const fail = (code, status) => Object.assign(new Error(code), { code, status });
+
+  let session = null;
+  try { session = JSON.parse(localStorage.getItem(STORE)); } catch (e) { session = null; }
+  function keep(s) {
+    session = s;
+    try { s ? localStorage.setItem(STORE, JSON.stringify(s)) : localStorage.removeItem(STORE); } catch (e) { /* session en memoire */ }
+  }
+
+  async function authToken(grant, body) {
+    let res;
+    try {
+      res = await fetch(`${SB_URL}/auth/v1/token?grant_type=${grant}`, {
+        method: "POST",
+        headers: { apikey: SB.key, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) { throw fail("server"); }
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 429) throw fail("locked", 429);
+    if (res.status === 400 || res.status === 401) throw fail("wrong_password", res.status);
+    if (!res.ok || !data.access_token) throw fail("server", res.status);
+    keep({ access: data.access_token, refresh: data.refresh_token, exp: Date.now() + (data.expires_in - 60) * 1000 });
+  }
+
+  async function accessToken() {
+    if (!session) throw fail("unauthorized", 401);
+    if (Date.now() > session.exp) {
+      try { await authToken("refresh_token", { refresh_token: session.refresh }); }
+      catch (e) { keep(null); throw fail("unauthorized", 401); }
+    }
+    return session.access;
+  }
+
+  async function rpc(fn, args = {}) {
+    const res = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { apikey: SB.key, authorization: "Bearer " + (await accessToken()), "content-type": "application/json" },
+      body: JSON.stringify(args),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && path !== "login") {
-      showLogin();
-      throw Object.assign(new Error("unauthorized"), { code: "unauthorized" });
-    }
-    if (!res.ok || data.ok === false) {
-      throw Object.assign(new Error(data.error || "server"), { code: data.error || "server", status: res.status });
-    }
+    if (res.status === 401 || res.status === 403 || data.code === "42501") { keep(null); throw fail("unauthorized", 401); }
+    if (!res.ok || data.ok === false) throw fail(data.error || "server", res.status);
     return data;
+  }
+
+  // Meme interface qu'avant (chemins de l'ancienne API), traduite en appels Supabase.
+  async function api(path, opts = {}) {
+    const method = opts.method || "GET";
+    const body = opts.body ? JSON.parse(opts.body) : {};
+    const [name, query] = path.split("?");
+    const q = new URLSearchParams(query || "");
+    try {
+      if (!SB_OK) throw fail("not_configured", 503);
+      if (name === "login") {
+        if (method === "DELETE") {
+          const s = session;
+          keep(null);
+          if (s) fetch(`${SB_URL}/auth/v1/logout`, { method: "POST", headers: { apikey: SB.key, authorization: "Bearer " + s.access } }).catch(() => {});
+          return { ok: true };
+        }
+        await authToken("password", { email: CFG.adminEmail, password: body.password });
+        await rpc("admin_ping").catch((e) => { throw e.code === "unauthorized" ? fail("wrong_password", 401) : e; });
+        return { ok: true };
+      }
+      if (name === "session") return await rpc("admin_ping");
+      if (name === "messages") {
+        if (method === "PATCH") return await rpc("admin_set_status", { p_id: body.id, p_status: body.status });
+        if (method === "DELETE") return await rpc("admin_delete_message", { p_id: Number(q.get("id")) });
+        return await rpc("admin_messages", { p_status: q.get("status") || "inbox" });
+      }
+      if (name === "stats") return await rpc("admin_stats", { p_days: Number(q.get("days")) || 30 });
+      throw fail("server");
+    } catch (e) {
+      if (e.code === "unauthorized" && name !== "login") showLogin();
+      throw e;
+    }
   }
 
   function toast(text) {

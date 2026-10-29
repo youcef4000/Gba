@@ -102,12 +102,21 @@
 
   /* ============================================================ analytics */
 
-  // Statistiques maison : un evenement = un petit POST vers /api/track.
-  // Pas de cookie, pas d'IP stockee ; "Do Not Track" est respecte.
-  const API = (CFG.api || "/api").replace(/\/$/, "");
+  // Statistiques maison : un evenement = un appel a la fonction track_event
+  // de la base Supabase. Pas de cookie, pas d'IP stockee ; "Do Not Track" est respecte.
+  const SB = CFG.supabase || {};
+  const SB_OK = !!(SB.url && SB.key && !/^SUPABASE_/.test(SB.key));
+  const rpc = (fn, args, keepalive = false) =>
+    fetch(SB.url.replace(/\/$/, "") + "/rest/v1/rpc/" + fn, {
+      method: "POST",
+      keepalive,
+      headers: { "content-type": "application/json", apikey: SB.key },
+      body: JSON.stringify(args),
+    });
   const track = (() => {
     const off =
       CFG.analytics === false ||
+      !SB_OK ||
       !/^https?:$/.test(location.protocol) ||
       navigator.doNotTrack === "1" ||
       window.doNotTrack === "1";
@@ -118,17 +127,19 @@
       if (unique && once.has(key)) return;
       once.add(key);
       const params = new URLSearchParams(location.search);
-      const body = JSON.stringify({
+      // Un lien interne n'est pas une source de visite.
+      let ref = type === "pageview" ? document.referrer : "";
+      try { if (ref && new URL(ref).host === location.host) ref = ""; } catch (e) { ref = ""; }
+      const p = {
         type,
         label,
         lang,
         path: location.pathname,
-        ref: type === "pageview" ? document.referrer : "",
+        ref,
         utm: type === "pageview" ? params.get("utm_source") || "" : "",
-      });
+      };
       try {
-        if (navigator.sendBeacon && navigator.sendBeacon(API + "/track", new Blob([body], { type: "application/json" }))) return;
-        fetch(API + "/track", { method: "POST", body, keepalive: true, headers: { "content-type": "application/json" } }).catch(() => {});
+        rpc("track_event", { p }, true).catch(() => {});
       } catch (e) { /* statistiques facultatives */ }
     };
   })();
@@ -248,10 +259,9 @@
     btn.classList.add("is-loading");
     setStatus(s.sending, false);
     try {
-      const res = await fetch(API + "/contact", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      if (!SB_OK) throw Object.assign(new Error("send"), { code: "server" });
+      const res = await rpc("submit_message", {
+        p: {
           name: d.name,
           contact: d.contact,
           business: d.biz,
@@ -262,7 +272,7 @@
           message: lastMessage,
           lang,
           website: $("#f-website").value,
-        }),
+        },
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw Object.assign(new Error("send"), { code: data.error || "server" });
